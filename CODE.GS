@@ -1731,118 +1731,105 @@ function hitungHariKerja(tglMulai, tglSelesai) {
 function getLaporanDetail(startStr, endStr) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Parsing Tanggal Filter (Set Jam ke 00:00 dan 23:59)
   const startDate = new Date(startStr); startDate.setHours(0,0,0,0);
   const endDate = new Date(endStr); endDate.setHours(23,59,59,999);
 
-  // 2. Ambil Semua Data Mentah
   const prodData = getData('PRODUK');
   const trxData = getData('TRANSAKSI');
   const keuData = getData('KEUANGAN');
   
-  // 3. Inisialisasi Variabel Laporan
   let laporan = {
-    pendapatan: 0,
-    hpp: 0,           // Harga Pokok Penjualan
-    pengeluaran: 0,   // Beban Operasional
-    pembelian: 0,     // Belanja Stok
-    nilaiStok: 0,     // Aset Stok Saat Ini
-    labaKotor: 0,
-    labaBersih: 0,
-    metodeBayar: {},  // Ringkasan Metode Bayar
-    listPengeluaran: [] // Detail Tabel Pengeluaran
+    pendapatan: 0, hpp: 0, pengeluaran: 0, pembelian: 0, nilaiStok: 0,
+    labaKotor: 0, labaBersih: 0, metodeBayar: {}, listPengeluaran: []
   };
 
-  // A. HITUNG NILAI STOK SAAT INI (Snapshot)
-  // Rumus: Stok Isi * Harga Beli
+  // --- [UPDATE] LOGIKA HITUNG ASET STOK ---
+  let mapProduk = {};
+  
   prodData.forEach(p => {
-    let hargaBeli = Number(p[3]) || 0;
-    let stok = Number(p[4]) || 0;
-    laporan.nilaiStok += (stok * hargaBeli);
+      // p[3] = Harga Beli Refill (Isi)
+      // p[4] = Stok Isi
+      // p[5] = Stok Kosong
+      // p[9] = Modal Tabung (Harga Besi Kosong - Kolom J)
+
+      let modalIsi = Number(p[3]) || 0; 
+      let stokIsi = Number(p[4]) || 0;
+      let stokKosong = Number(p[5]) || 0;
+      // Ambil Modal Tabung dari Kolom J (Index 9). Jika kosong, dianggap 0.
+      let modalTabung = Number(p[9]) || 0; 
+
+      // 1. Nilai Gas (Hanya yg ada isinya)
+      let nilaiGas = stokIsi * modalIsi;
+
+      // 2. Nilai Besi (Stok Isi + Stok Kosong punya nilai besi)
+      let totalTabung = stokIsi + stokKosong;
+      let nilaiBesi = totalTabung * modalTabung;
+
+      // Total Aset Produk Ini
+      laporan.nilaiStok += (nilaiGas + nilaiBesi);
+
+      // Simpan harga untuk perhitungan HPP Transaksi
+      mapProduk[p[1]] = {
+          modalRefill: modalIsi,
+          modalBaru: modalTabung 
+      };
   });
 
-    let mapProduk = {};
-      prodData.forEach(p => {
-          mapProduk[p[1]] = {
-              modalIsi: Number(p[3]) || 0,      // Harga Beli (Refill)
-              modalTabung: Number(p[9]) || 0    // [BARU] Modal Tabung Kosong (Kolom J/Index 9)
-          };
-      });
-
+  // --- HITUNG TRANSAKSI (SAMA SEPERTI SEBELUMNYA) ---
   trxData.forEach(row => {
     let tgl = new Date(row[1]);
     if (tgl >= startDate && tgl <= endDate) {
-        
         let produk = row[3];
         let qty = Number(row[4]);
         let totalJual = Number(row[5]);
-        let metode = row[8]; // Kolom I
-        let status = row[10];
+        let tipeTrx = row[6];
+        let metode = row[8];
 
-        // Hanya hitung jika tidak dibatalkan (Opsional: sesuaikan logika status)
-        // Disini kita anggap semua transaksi yg tercatat adalah valid penjualan
-        
-        // 1. Pendapatan
         laporan.pendapatan += totalJual;
 
-        // 2. HPP (Harga Pokok Penjualan)
-        let dataProd = mapProduk[produk] || {modalIsi:0, modalTabung:0};
-        let hppSatuan = dataProd.modalIsi; // Default: Harga Refill
+        let dataProd = mapProduk[produk] || {modalRefill:0, modalBaru:0};
+        let hppPerItem = 0;
 
-        // JIKA BUKAN REFILL (Artinya Jual Tabung Baru), Tambahkan Modal Tabung
-        // Asumsi: Jika metode bayar/tipe bukan 'Tukar (Refill)', berarti jual putus/tabung baru
-        // (Sesuaikan logika 'row' index keberapa tipe transaksinya disimpan, biasanya row[6])
-        let tipeTrx = row[6]; 
-
-        if (tipeTrx !== 'Tukar (Refill)') {
-             hppSatuan += dataProd.modalTabung; 
+        if (tipeTrx === 'Beli Tabung Baru') {
+             // Jika Jual Tabung Baru, HPP = Harga Tabung (Kalo 205rb ya 205rb)
+             hppPerItem = dataProd.modalBaru; 
+             if(hppPerItem === 0) hppPerItem = dataProd.modalRefill; 
+        } else {
+             // Jika Refill, HPP = Harga Isi
+             hppPerItem = dataProd.modalRefill;
         }
 
-        laporan.hpp += (qty * hppSatuan);
+        laporan.hpp += (qty * hppPerItem);
 
-        // 3. Ringkasan Metode Bayar
         if(!laporan.metodeBayar[metode]) laporan.metodeBayar[metode] = 0;
         laporan.metodeBayar[metode] += totalJual;
     }
   });
 
-  // C. HITUNG KEUANGAN (Pengeluaran & Pembelian Stok)
+  // --- HITUNG PENGELUARAN ---
   keuData.forEach(row => {
     let tgl = new Date(row[1]);
     if (tgl >= startDate && tgl <= endDate) {
-        let jenis = row[2]; // Pemasukan / Pengeluaran
+        let jenis = row[2];
         let kategori = row[3];
         let nominal = Number(row[4]);
         
         if (jenis === 'Pengeluaran') {
-           // Pisahkan antara "Beli Stok" dan "Beban Operasional"
            if (kategori === 'Pembelian Stok') {
               laporan.pembelian += nominal;
            } else if (kategori !== 'Retur Penjualan') { 
-              // Retur biasanya mengurangi pendapatan, tapi disini kita masukkan ke Pengeluaran Operasional atau abaikan jika sudah handle di struk.
-              // Kita anggap semua pengeluaran selain beli stok adalah Beban.
               laporan.pengeluaran += nominal;
-              
-              // Masukkan ke List Detail Pengeluaran
               laporan.listPengeluaran.push({
-                 id: row[0],
-                 tanggal: row[1],
-                 kategori: kategori,
-                 ket: row[5],
-                 jumlah: nominal
+                 id: row[0], tanggal: row[1], kategori: kategori, ket: row[5], jumlah: nominal
               });
            }
         }
     }
   });
 
-  // D. FINALISASI (Laba Rugi)
   laporan.labaKotor = laporan.pendapatan - laporan.hpp;
   laporan.labaBersih = laporan.labaKotor - laporan.pengeluaran;
-
-  // E. TAMBAHAN: AMBIL SALDO AKUN REALTIME
-  // Kita gunakan fungsi getDaftarAkun() yang sudah ada agar hitungannya sinkron
-  laporan.daftarAkun = getDaftarAkun(); 
+  laporan.daftarAkun = getDaftarAkun();
 
   return laporan;
 }
