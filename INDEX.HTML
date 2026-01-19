@@ -335,6 +335,7 @@
                   </div>
 
                   <div class="mb-3">
+                    <label class="small fw-bold text-muted mb-1">Metode Pembayaran</label>
                       <div class="mb-3">
                         <label class="small fw-bold text-muted mb-1">Metode Pembayaran</label>
                         <select id="pos-metode-bayar" class="form-select fw-bold border-secondary">
@@ -603,44 +604,45 @@
 
                     <hr class="text-muted opacity-25 my-4">
 
-                    <h6 class="text-uppercase text-muted fw-bold mb-3 small letter-spacing-1">Harga</h6>
-                    <div class="row g-3 mb-4">
-                      <div class="col-md-6">
-                          <label class="form-label small fw-bold text-primary">Harga Jual</label>
-                          <div class="input-group">
-                              <span class="input-group-text bg-white border text-muted fw-bold">Rp</span>
-                              <input id="edit-prod-jual" type="number" class="form-control border fw-bold text-primary py-2" style="font-size: 1.1rem;">
-                          </div>
+                    <h6 class="text-uppercase text-muted fw-bold mb-3 small letter-spacing-1">Harga (Isi Ulang / Refill)</h6>
+                      <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-primary">Harga Jual Refill</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border fw-bold">Rp</span>
+                                <input id="edit-prod-jual" type="text" class="form-control border fw-bold text-primary" onkeyup="formatRupiahInput(this)">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Harga Modal Refill (HPP)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-0">Rp</span>
+                                <input id="edit-prod-beli" type="text" class="form-control bg-light border-0" onkeyup="formatRupiahInput(this)">
+                            </div>
+                        </div>
                       </div>
-                      <div class="col-md-6">
-                          <label class="form-label small fw-bold text-muted">Harga Beli (Modal)</label>
-                          <div class="input-group">
-                              <span class="input-group-text bg-light border-0 text-muted">Rp</span>
-                              <input id="edit-prod-beli" type="number" class="form-control bg-light border-0 py-2">
-                          </div>
-                      </div>
-                    </div>
-                    <div class="mb-3">
-    <label class="form-label fw-bold text-secondary small">Modal Tabung Kosong (Khusus Tabung Baru)</label>
-    <div class="input-group">
-        <span class="input-group-text">Rp</span>
-        <input type="number" class="form-control fw-bold" id="edit-prod-modal-tabung" placeholder="Contoh: 130000">
-    </div>
-    <div class="form-text" style="font-size: 11px;">
-        *Diisi harga beli tabung kosongnya saja.
-    </div>
-</div>
 
-<div class="mb-3">
-    <label class="form-label fw-bold text-primary small">Harga Jual Tabung Kosong (Tambahan)</label>
-    <div class="input-group">
-        <span class="input-group-text">Rp</span>
-        <input type="number" class="form-control fw-bold border-primary" id="edit-prod-jual-tabung" placeholder="Contoh: 150000">
-    </div>
-    <div class="form-text text-danger" style="font-size: 11px;">
-        *Harga ini akan otomatis ditambahkan jika kasir memilih 'Tabung Baru'.
-    </div>
-</div>
+                      <h6 class="text-uppercase text-muted fw-bold mb-3 small letter-spacing-1">Harga (Tabung Kosong)</h6>
+                      <div class="alert alert-light border shadow-sm">
+                          <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-dark">Harga Jual Tabung</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white border fw-bold">Rp</span>
+                                    <input id="edit-prod-jual-tabung" type="text" class="form-control border fw-bold text-dark" onkeyup="formatRupiahInput(this)" placeholder="Cth: 198.000">
+                                </div>
+                                <div class="form-text small">Ditambahkan saat transaksi "Tabung Baru".</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted">Harga Modal Tabung (HPP)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-0">Rp</span>
+                                    <input id="edit-prod-beli-tabung" type="text" class="form-control bg-light border-0" onkeyup="formatRupiahInput(this)" placeholder="Cth: 189.000">
+                                </div>
+                            </div>
+                          </div>
+                      </div>
+
                     <div class="alert alert-light border border-danger-subtle bg-danger-subtle rounded-3 p-4 mb-4">
                       <div class="d-flex align-items-center mb-3 text-danger">
                           <i class="material-icons me-2">lock</i>
@@ -1515,34 +1517,26 @@
 
           <div class="row mb-2">
             <div class="col-6">
-              <label class="small fw-bold">Harga Jual</label>
-              <input id="prod-jual" type="text" class="form-control" placeholder="0" onkeyup="formatRupiahInput(this)">
-            </div>
-            <div class="col-6">
-              <label class="small fw-bold">Harga Beli</label>
-              <input id="prod-beli" type="text" class="form-control" placeholder="0" onkeyup="formatRupiahInput(this)">
-            </div>
-          </div>
-          <div class="mb-3">
-              <label class="form-label fw-bold text-secondary small">Modal Tabung Kosong (Khusus Tabung Baru)</label>
-              <div class="input-group">
-                  <span class="input-group-text">Rp</span>
-                  <input type="number" class="form-control fw-bold" id="prod-modal-tabung" placeholder="Contoh: 130000">
+              <label class="small fw-bold mt-2">Harga Refill (Isi Ulang)</label>
+              <div class="row mb-2">
+                <div class="col-6">
+                  <input id="prod-jual" type="text" class="form-control" placeholder="Jual (Rp)" onkeyup="formatRupiahInput(this)">
+                </div>
+                <div class="col-6">
+                  <input id="prod-beli" type="text" class="form-control" placeholder="Beli/Modal (Rp)" onkeyup="formatRupiahInput(this)">
+                </div>
               </div>
-              <div class="form-text" style="font-size: 11px;">
-                  *Diisi harga beli tabung kosongnya saja. Jika produk bukan gas, isi 0.
+
+              <label class="small fw-bold mt-2">Harga Tabung Kosong (Opsional)</label>
+              <div class="row mb-3 bg-light p-2 rounded border mx-0">
+                <div class="col-6">
+                  <input id="prod-jual-tabung" type="text" class="form-control" placeholder="Jual Tabung (Rp)" onkeyup="formatRupiahInput(this)">
+                </div>
+                <div class="col-6">
+                  <input id="prod-beli-tabung" type="text" class="form-control" placeholder="Modal Tabung (Rp)" onkeyup="formatRupiahInput(this)">
+                </div>
+                <div class="col-12"><small class="text-muted" style="font-size:10px">*Isi jika produk ini bisa dijual paket tabung baru.</small></div>
               </div>
-          </div>
-          <div class="mb-3">
-              <label class="form-label fw-bold text-primary small">Harga Jual Tabung Kosong (Tambahan)</label>
-              <div class="input-group">
-                  <span class="input-group-text">Rp</span>
-                  <input type="number" class="form-control fw-bold border-primary" id="prod-jual-tabung" placeholder="Contoh: 150000">
-              </div>
-              <div class="form-text text-danger" style="font-size: 11px;">
-                  *Harga ini akan otomatis ditambahkan jika kasir memilih 'Tabung Baru'.
-              </div>
-          </div>
 
           <div class="row">
             <div class="col">
