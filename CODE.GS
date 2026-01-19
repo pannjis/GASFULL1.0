@@ -12,21 +12,18 @@ function include(filename) {
 
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = [
+const sheets = [
     {name: 'USERS', header: ['Username', 'Password', 'Role', 'Nama']},
-    {name: 'PRODUK', header: ['ID', 'Nama_Produk', 'Harga_Jual', 'Harga_Beli', 'Stok_Isi', 'Stok_Kosong', 'SKU', 'Kode', 'Link_Gambar', 'Modal_Tabung', 'Harga_Jual_Tabung']},
+    // [UPDATE] Menambah kolom Harga_Beli_Tabung & Harga_Jual_Tabung (Index 9 & 10)
+    {name: 'PRODUK', header: ['ID', 'Nama_Produk', 'Harga_Jual', 'Harga_Beli', 'Stok_Isi', 'Stok_Kosong', 'SKU', 'Kode', 'Link_Gambar', 'Harga_Beli_Tabung', 'Harga_Jual_Tabung']},
     {name: 'PELANGGAN', header: ['ID', 'Nama', 'Nama_Perusahan', 'NoHP', 'Alamat']},
     {name: 'SUPPLIER', header: ['ID', 'Nama_Supplier', 'NoHP', 'Alamat']},
     {name: 'TRANSAKSI', header: ['ID_Trans', 'Waktu', 'Pelanggan', 'Produk', 'Qty', 'Total', 'Tipe', 'Kasir', 'Metode_Bayar', 'Jatuh_Tempo', 'Status']},
     {name: 'PEMBELIAN', header: ['ID_Beli', 'Waktu', 'Supplier', 'Produk', 'Qty', 'Total', 'Metode']},
-    // [UPDATE] Header Keuangan ditambah kolom 'Akun'
     {name: 'KEUANGAN', header: ['ID', 'Tanggal', 'Jenis', 'Kategori', 'Nominal', 'Keterangan', 'Akun']}, 
     {name: 'KATEGORI', header: ['Nama_Kategori']},
-    {name: 'KARYAWAN', header: ['ID', 'Nama_Lengkap', 'Tempat_Lahir', 'Tanggal_Lahir', 'Jenis_Kelamin', 
-    'No_Identitas', 'Tipe_Identitas', 'Email', 'Alamat_KTP', 'Alamat_Domisili',
-    'Nama_Darurat', 'Telp_Darurat', 'Gaji_Pokok', 'Bonus', 'Foto_Url', 'Status', 'Tanggal_Masuk'
-    ]}, 
-    {name: 'RIWAYAT_GAJI', header: ['ID_Gaji', 'Periode', 'Tanggal_Generate', 'Nama_Karyawan', 'Gaji_Pokok', 'Bonus', 'Potongan_Kasbon', 'Total_THP', 'Status']}, 
+    {name: 'KARYAWAN', header: ['ID', 'Nama_Lengkap', 'Tempat_Lahir', 'Tanggal_Lahir', 'Jenis_Kelamin', 'No_Identitas', 'Tipe_Identitas', 'Email', 'Alamat_KTP', 'Alamat_Domisili', 'Nama_Darurat', 'Telp_Darurat', 'Gaji_Pokok', 'Bonus', 'Foto_Url', 'Status', 'Tanggal_Masuk']}, 
+    {name: 'RIWAYAT_GAJI', header: ['ID_Gaji', 'Periode', 'Tanggal_Generate', 'Nama_Karyawan', 'Gaji_Pokok', 'Bonus', 'Potongan_Kasbon', 'Total_THP', 'Status', 'Kasbon_Baru']}, 
     {name: 'KASBON', header: ['ID_Kasbon', 'Tanggal', 'Nama_Karyawan', 'Nominal', 'Keterangan', 'Status_Lunas', 'Sudah_Bayar', 'Tenor', 'Angsuran_Per_Bulan']},
     {name: 'RIWAYAT_BAYAR_KASBON', header: ['ID_Bayar', 'ID_Kasbon', 'Tanggal_Bayar', 'Nominal_Bayar', 'Tipe_Bayar', 'Keterangan']},
     {name: 'PENGATURAN', header: ['Key', 'Value']},
@@ -472,19 +469,19 @@ function tambahProduk(form) {
     imageUrl = (typeof form.gambar === 'string') ? form.gambar : '';
   }
 
-  // Simpan ke Spreadsheet
+  // [UPDATE] Simpan data Tabung
   sheet.appendRow([
     'P-' + Date.now(), 
     form.nama, 
-    form.hargaJual, 
-    form.hargaBeli, 
+    form.hargaJual,       // Harga Jual Refill
+    form.hargaBeli,       // Harga Beli Refill (HPP Isi)
     form.stokIsi, 
     form.stokKosong,
     form.sku,     
     form.kode,    
     imageUrl,
-    form.modalTabung, 
-    form.hargaJualTabung
+    form.hargaBeliTabung || 0, // [Baru] HPP Tabung Kosong (cth: 189.000)
+    form.hargaJualTabung || 0  // [Baru] Harga Jual Tabung Kosong (cth: 198.000)
   ]);
 }
 
@@ -531,18 +528,17 @@ function updateProduk(form) {
       finalImageUrl = form.gambar;
   }
 
-// Update Baris
+  // [UPDATE] Update Kolom Baru
   sheet.getRange(rowTarget, 2).setValue(form.nama);
   sheet.getRange(rowTarget, 3).setValue(form.hargaJual);
-  sheet.getRange(rowTarget, 4).setValue(form.hargaBeli); 
-  // ... (stok skip) ...
+  sheet.getRange(rowTarget, 4).setValue(form.hargaBeli);
   sheet.getRange(rowTarget, 7).setValue(form.sku);
   sheet.getRange(rowTarget, 8).setValue(form.kode);
   sheet.getRange(rowTarget, 9).setValue(finalImageUrl);
   
-  // [BARU] Update Modal Tabung (Kolom 10 / J)
-  sheet.getRange(rowTarget, 10).setValue(form.modalTabung); 
-  sheet.getRange(rowTarget, 11).setValue(form.hargaJualTabung); // <--- BARU: Update Harga Jual Tabung
+  // Kolom 10 & 11 (Index sheet mulai dari 1, jadi J=10, K=11)
+  sheet.getRange(rowTarget, 10).setValue(form.hargaBeliTabung || 0); 
+  sheet.getRange(rowTarget, 11).setValue(form.hargaJualTabung || 0);
 
   return "Produk Berhasil Diupdate!";
 }
@@ -1728,9 +1724,105 @@ function hitungHariKerja(tglMulai, tglSelesai) {
 
 // --- MODUL LAPORAN TERPUSAT ---
 
+// [Code.gs]
+
+function setupDatabase() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = [
+    {name: 'USERS', header: ['Username', 'Password', 'Role', 'Nama']},
+    // [UPDATE] Menambah kolom Harga_Beli_Tabung & Harga_Jual_Tabung (Index 9 & 10)
+    {name: 'PRODUK', header: ['ID', 'Nama_Produk', 'Harga_Jual', 'Harga_Beli', 'Stok_Isi', 'Stok_Kosong', 'SKU', 'Kode', 'Link_Gambar', 'Harga_Beli_Tabung', 'Harga_Jual_Tabung']},
+    {name: 'PELANGGAN', header: ['ID', 'Nama', 'Nama_Perusahan', 'NoHP', 'Alamat']},
+    {name: 'SUPPLIER', header: ['ID', 'Nama_Supplier', 'NoHP', 'Alamat']},
+    {name: 'TRANSAKSI', header: ['ID_Trans', 'Waktu', 'Pelanggan', 'Produk', 'Qty', 'Total', 'Tipe', 'Kasir', 'Metode_Bayar', 'Jatuh_Tempo', 'Status']},
+    {name: 'PEMBELIAN', header: ['ID_Beli', 'Waktu', 'Supplier', 'Produk', 'Qty', 'Total', 'Metode']},
+    {name: 'KEUANGAN', header: ['ID', 'Tanggal', 'Jenis', 'Kategori', 'Nominal', 'Keterangan', 'Akun']}, 
+    {name: 'KATEGORI', header: ['Nama_Kategori']},
+    {name: 'KARYAWAN', header: ['ID', 'Nama_Lengkap', 'Tempat_Lahir', 'Tanggal_Lahir', 'Jenis_Kelamin', 'No_Identitas', 'Tipe_Identitas', 'Email', 'Alamat_KTP', 'Alamat_Domisili', 'Nama_Darurat', 'Telp_Darurat', 'Gaji_Pokok', 'Bonus', 'Foto_Url', 'Status', 'Tanggal_Masuk']}, 
+    {name: 'RIWAYAT_GAJI', header: ['ID_Gaji', 'Periode', 'Tanggal_Generate', 'Nama_Karyawan', 'Gaji_Pokok', 'Bonus', 'Potongan_Kasbon', 'Total_THP', 'Status', 'Kasbon_Baru']}, 
+    {name: 'KASBON', header: ['ID_Kasbon', 'Tanggal', 'Nama_Karyawan', 'Nominal', 'Keterangan', 'Status_Lunas', 'Sudah_Bayar', 'Tenor', 'Angsuran_Per_Bulan']},
+    {name: 'RIWAYAT_BAYAR_KASBON', header: ['ID_Bayar', 'ID_Kasbon', 'Tanggal_Bayar', 'Nominal_Bayar', 'Tipe_Bayar', 'Keterangan']},
+    {name: 'PENGATURAN', header: ['Key', 'Value']},
+    {name: 'AKUN_KAS', header: ['ID_Akun', 'Nama_Akun', 'No_Rekening', 'Tipe', 'Saldo_Awal']} 
+  ];
+  // ... (Sisa kode setupDatabase sama) ...
+  sheets.forEach(s => {
+    let sheet = ss.getSheetByName(s.name);
+    if (!sheet) {
+      sheet = ss.insertSheet(s.name);
+      sheet.appendRow(s.header);
+      // ... default data ...
+    }
+  });
+}
+
+function tambahProduk(form) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('PRODUK');
+  const FOLDER_ID = '15hiLtvusofF2OJpXVq8lJkePbmqVIuPM'; // Sesuaikan Folder ID
+  
+  let imageUrl = '';
+  // ... (Logika upload gambar sama seperti sebelumnya) ...
+  if (form.gambar && form.gambar.data) {
+      // ... proses upload ...
+      // imageUrl = ...
+  }
+
+  // [UPDATE] Simpan data Tabung
+  sheet.appendRow([
+    'P-' + Date.now(), 
+    form.nama, 
+    form.hargaJual,       // Harga Jual Refill
+    form.hargaBeli,       // Harga Beli Refill (HPP Isi)
+    form.stokIsi, 
+    form.stokKosong,
+    form.sku,     
+    form.kode,    
+    imageUrl,
+    form.hargaBeliTabung || 0, // [Baru] HPP Tabung Kosong (cth: 189.000)
+    form.hargaJualTabung || 0  // [Baru] Harga Jual Tabung Kosong (cth: 198.000)
+  ]);
+}
+
+function updateProduk(form) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('PRODUK');
+  const data = sheet.getDataRange().getValues();
+  const FOLDER_ID = '15hiLtvusofF2OJpXVq8lJkePbmqVIuPM';
+
+  let rowTarget = -1;
+  let oldImage = '';
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == form.id) {
+      rowTarget = i + 1;
+      oldImage = data[i][8];
+      break;
+    }
+  }
+
+  if (rowTarget === -1) throw new Error("Produk tidak ditemukan.");
+
+  // ... (Logika gambar sama) ...
+  let finalImageUrl = oldImage; // Default
+
+  // [UPDATE] Update Kolom Baru
+  sheet.getRange(rowTarget, 2).setValue(form.nama);
+  sheet.getRange(rowTarget, 3).setValue(form.hargaJual);
+  sheet.getRange(rowTarget, 4).setValue(form.hargaBeli);
+  sheet.getRange(rowTarget, 7).setValue(form.sku);
+  sheet.getRange(rowTarget, 8).setValue(form.kode);
+  sheet.getRange(rowTarget, 9).setValue(finalImageUrl);
+  
+  // Kolom 10 & 11 (Index sheet mulai dari 1, jadi J=10, K=11)
+  sheet.getRange(rowTarget, 10).setValue(form.hargaBeliTabung || 0); 
+  sheet.getRange(rowTarget, 11).setValue(form.hargaJualTabung || 0);
+
+  return "Produk Berhasil Diupdate!";
+}
+
 function getLaporanDetail(startStr, endStr) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
   const startDate = new Date(startStr); startDate.setHours(0,0,0,0);
   const endDate = new Date(endStr); endDate.setHours(23,59,59,999);
 
@@ -1739,92 +1831,80 @@ function getLaporanDetail(startStr, endStr) {
   const keuData = getData('KEUANGAN');
   
   let laporan = {
-    pendapatan: 0, hpp: 0, pengeluaran: 0, pembelian: 0, nilaiStok: 0,
-    labaKotor: 0, labaBersih: 0, metodeBayar: {}, listPengeluaran: []
+    pendapatan: 0,
+    hpp: 0,
+    pengeluaran: 0,
+    pembelian: 0,
+    nilaiStok: 0,
+    labaKotor: 0,
+    labaBersih: 0,
+    metodeBayar: {},
+    listPengeluaran: []
   };
 
-  // --- [UPDATE] LOGIKA HITUNG ASET STOK ---
+  // [UPDATE] A. DATA PRODUK MASTER (Mapping Harga Refill & Tabung)
   let mapProduk = {};
-  
   prodData.forEach(p => {
-      // p[3] = Harga Beli Refill (Isi)
-      // p[4] = Stok Isi
-      // p[5] = Stok Kosong
-      // p[9] = Modal Tabung (Harga Besi Kosong - Kolom J)
-
-      let modalIsi = Number(p[3]) || 0; 
-      let stokIsi = Number(p[4]) || 0;
-      let stokKosong = Number(p[5]) || 0;
-      // Ambil Modal Tabung dari Kolom J (Index 9). Jika kosong, dianggap 0.
-      let modalTabung = Number(p[9]) || 0; 
-
-      // 1. Nilai Gas (Hanya yg ada isinya)
-      let nilaiGas = stokIsi * modalIsi;
-
-      // 2. Nilai Besi (Stok Isi + Stok Kosong punya nilai besi)
-      let totalTabung = stokIsi + stokKosong;
-      let nilaiBesi = totalTabung * modalTabung;
-
-      // Total Aset Produk Ini
-      laporan.nilaiStok += (nilaiGas + nilaiBesi);
-
-      // Simpan harga untuk perhitungan HPP Transaksi
-      mapProduk[p[1]] = {
-          modalRefill: modalIsi,
-          modalBaru: modalTabung 
-      };
+    // p[1]:Nama, p[3]:HPP Isi, p[9]:HPP Tabung
+    mapProduk[p[1]] = {
+        hppIsi: Number(p[3]) || 0,
+        hppTabung: Number(p[9]) || 0,
+        stokIsi: Number(p[4]) || 0
+    };
+    // Hitung Nilai Aset Stok (Hanya Isi, karena Tabung aset tetap/inventory beda)
+    // Atau jika mau hitung aset tabung juga boleh ditambahkan
+    laporan.nilaiStok += (Number(p[4]) * Number(p[3])); 
   });
 
-  // --- HITUNG TRANSAKSI (SAMA SEPERTI SEBELUMNYA) ---
+  // [UPDATE] B. HITUNG TRANSAKSI DENGAN LOGIKA BARU
   trxData.forEach(row => {
     let tgl = new Date(row[1]);
     if (tgl >= startDate && tgl <= endDate) {
         let produk = row[3];
         let qty = Number(row[4]);
         let totalJual = Number(row[5]);
-        let tipeTrx = row[6];
-        let metode = row[8];
+        let tipe = String(row[6]).toLowerCase(); // "Tukar (Refill)" atau "Beli Tabung Baru"
+        let status = row[10];
 
-        laporan.pendapatan += totalJual;
+        if(!String(status).includes('Retur')) {
+            // 1. Pendapatan
+            laporan.pendapatan += totalJual;
 
-        let dataProd = mapProduk[produk] || {modalRefill:0, modalBaru:0};
-        let hppPerItem = 0;
+            // 2. HPP DINAMIS
+            let infoProd = mapProduk[produk];
+            if(infoProd) {
+                let modalSatuan = infoProd.hppIsi; // Default Refill (16.000)
+                
+                // Jika tipe transaksi mengandung kata "baru", tambahkan modal tabung
+                if(tipe.includes('baru')) {
+                    modalSatuan += infoProd.hppTabung; // 16.000 + 189.000 = 205.000
+                }
+                
+                laporan.hpp += (qty * modalSatuan);
+            }
 
-        if (tipeTrx === 'Beli Tabung Baru') {
-             // Jika Jual Tabung Baru, HPP = Harga Tabung (Kalo 205rb ya 205rb)
-             hppPerItem = dataProd.modalBaru; 
-             if(hppPerItem === 0) hppPerItem = dataProd.modalRefill; 
-        } else {
-             // Jika Refill, HPP = Harga Isi
-             hppPerItem = dataProd.modalRefill;
+            // 3. Metode Bayar
+            let metode = row[8];
+            if(!laporan.metodeBayar[metode]) laporan.metodeBayar[metode] = 0;
+            laporan.metodeBayar[metode] += totalJual;
         }
-
-        laporan.hpp += (qty * hppPerItem);
-
-        if(!laporan.metodeBayar[metode]) laporan.metodeBayar[metode] = 0;
-        laporan.metodeBayar[metode] += totalJual;
     }
   });
 
-  // --- HITUNG PENGELUARAN ---
+  // ... (Sisa fungsi getLaporanDetail sama untuk Keuangan & Finalisasi) ...
+  // C. Hitung Keuangan
   keuData.forEach(row => {
-    let tgl = new Date(row[1]);
-    if (tgl >= startDate && tgl <= endDate) {
-        let jenis = row[2];
-        let kategori = row[3];
-        let nominal = Number(row[4]);
-        
-        if (jenis === 'Pengeluaran') {
-           if (kategori === 'Pembelian Stok') {
-              laporan.pembelian += nominal;
-           } else if (kategori !== 'Retur Penjualan') { 
-              laporan.pengeluaran += nominal;
-              laporan.listPengeluaran.push({
-                 id: row[0], tanggal: row[1], kategori: kategori, ket: row[5], jumlah: nominal
-              });
-           }
-        }
-    }
+      // (Logika sama seperti sebelumnya)
+      let tgl = new Date(row[1]);
+      if (tgl >= startDate && tgl <= endDate) {
+          if (row[2] === 'Pengeluaran') {
+             if (row[3] === 'Pembelian Stok') laporan.pembelian += Number(row[4]);
+             else if (row[3] !== 'Retur Penjualan') {
+                 laporan.pengeluaran += Number(row[4]);
+                 laporan.listPengeluaran.push({id:row[0], tanggal:row[1], kategori:row[3], ket:row[5], jumlah:Number(row[4])});
+             }
+          }
+      }
   });
 
   laporan.labaKotor = laporan.pendapatan - laporan.hpp;
