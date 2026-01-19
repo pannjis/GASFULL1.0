@@ -1022,112 +1022,89 @@ function loadProduk() {
     }).getData('PRODUK');
 }
 
-// [FIXED] Fungsi Membuka Halaman Edit & Isi Data
+// [UPDATE] 4. BUKA HALAMAN EDIT (Isi Field Baru)
 function bukaHalamanEdit(id) {
-    // Cari data produk di variabel global berdasarkan ID (Kolom 0)
     const produk = globalProdukList.find(row => row[0] == id);
-    
     if (!produk) return myAlert('Error', 'Data produk tidak ditemukan.', 'error');
 
-    // Isi Form Edit dengan Data Lama
-    document.getElementById('edit-prod-id').value = produk[0]; // ID
+    // Field Lama
+    document.getElementById('edit-prod-id').value = produk[0];
     document.getElementById('edit-prod-nama').value = produk[1];
-    document.getElementById('edit-prod-jual').value = Number(produk[2]); // Format angka
-    document.getElementById('edit-prod-beli').value = Number(produk[3]); // Format angka
-
-    // [PERBAIKAN DISINI]
-    // Kita pisahkan variabel untuk Modal dan Harga Jual Tabung
-    const elModal = document.getElementById('edit-prod-modal-tabung');
-    const elJual  = document.getElementById('edit-prod-jual-tabung'); // <--- Ganti nama jadi elJual
-
-    // Isi jika elemennya ada
-    if(elModal) elModal.value = Number(produk[9]) || 0;  // Modal Tabung (Kolom J)
-    if(elJual)  elJual.value  = Number(produk[10]) || 0; // Harga Jual Tabung (Kolom K)
-    
-    // Stok (Read Only)
-    // Pastikan elemen ini ada di HTML, kalau tidak ada bisa di-skip/hapus
-    if(document.getElementById('edit-prod-isi')) 
-        document.getElementById('edit-prod-isi').value = produk[4];
-        
-    if(document.getElementById('edit-prod-kosong')) 
-        document.getElementById('edit-prod-kosong').value = produk[5];
-
-    // Info Tambahan
     document.getElementById('edit-prod-sku').value = produk[6] || '';
     document.getElementById('edit-prod-kode').value = produk[7] || '';
+    document.getElementById('edit-prod-isi').value = produk[4];
+    document.getElementById('edit-prod-kosong').value = produk[5];
 
-    // Preview Gambar Lama
+    // Field Harga (Format Ribuan)
+    document.getElementById('edit-prod-jual').value = Number(produk[2]).toLocaleString('id-ID'); // Jual Isi
+    document.getElementById('edit-prod-beli').value = Number(produk[3]).toLocaleString('id-ID'); // Beli Isi (Modal)
+
+    // [BARU] Field Harga Tabung
+    document.getElementById('edit-prod-jual-tabung').value = Number(produk[10] || 0).toLocaleString('id-ID');
+    document.getElementById('edit-prod-beli-tabung').value = Number(produk[9] || 0).toLocaleString('id-ID');
+
+    // Gambar
     const imgUrl = produk[8];
     const imgPrev = document.getElementById('edit-img-preview');
-    const imgContainer = document.getElementById('edit-img-preview-container'); // Container gambar (opsional)
-
     if(imgUrl && imgUrl.length > 5) {
-        imgPrev.src = imgUrl;
-        imgPrev.classList.remove('d-none');
-        if(imgContainer) imgContainer.classList.remove('d-none');
+        imgPrev.src = imgUrl; imgPrev.classList.remove('d-none');
     } else {
-        imgPrev.src = ''; 
-        imgPrev.classList.add('d-none');
-        if(imgContainer) imgContainer.classList.add('d-none');
+        imgPrev.src = ''; imgPrev.classList.add('d-none');
     }
+    document.getElementById('edit-prod-file').value = '';
 
-    // Reset Input File
-    const fileInput = document.getElementById('edit-prod-file');
-    if(fileInput) fileInput.value = '';
-
-    // Pindah Tampilan ke Halaman Edit
     showPage('edit-produk');
 }
 
-// 3. Proses Simpan ke Server
+// 2. Helper Preview Image di Halaman Edit
+function previewEditImage(input) {
+    const preview = document.getElementById('edit-img-preview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// [UPDATE] 5. PROSES SIMPAN EDIT (Kirim Field Baru)
 function prosesSimpanEdit() {
     const fileInput = document.getElementById('edit-prod-file');
     const file = fileInput.files[0];
 
-    // Ambil Data Form
+    // Helper Unformat Rupiah
+    const num = (id) => Number(document.getElementById(id).value.replace(/\./g, '')) || 0;
+
     const payload = {
         id: document.getElementById('edit-prod-id').value,
         nama: document.getElementById('edit-prod-nama').value,
-        hargaJual: document.getElementById('edit-prod-jual').value,
-        hargaBeli: document.getElementById('edit-prod-beli').value,
         sku: document.getElementById('edit-prod-sku').value,
         kode: document.getElementById('edit-prod-kode').value,
-        // [BARU] Kirim data update
-        modalTabung: document.getElementById('edit-prod-modal-tabung').value || 0,
-        hargaJualTabung: document.getElementById('edit-prod-jual-tabung').value || 0,
-        gambar: null // Default null (tidak ganti)
+        
+        hargaJual: num('edit-prod-jual'),
+        hargaBeli: num('edit-prod-beli'),
+        hargaJualTabung: num('edit-prod-jual-tabung'), // [Baru]
+        hargaBeliTabung: num('edit-prod-beli-tabung'), // [Baru]
+        
+        gambar: null 
     };
 
-    if(!payload.nama) return myAlert('Error', 'Nama produk tidak boleh kosong', 'warning');
-
-    // Fungsi Pengirim
+    // ... (Logika kirim updateProduk sama, cuma payload nambah) ...
+    // Copy paste logika fileReader dari kode lama disini
     const kirimUpdate = (data) => {
         loading(true);
-        google.script.run
-            .withSuccessHandler(res => {
-                loading(false);
-                myAlert('Sukses', res, 'success');
-                showPage('produk'); // Kembali ke tabel
-                loadProduk();       // Refresh data tabel
-            })
-            .withFailureHandler(err => {
-                loading(false);
-                myAlert('Gagal', err.message, 'error');
-            })
-            .updateProduk(data);
+        google.script.run.withSuccessHandler(res => {
+            loading(false); myAlert('Sukses', res, 'success');
+            showPage('produk'); loadProduk();
+        }).updateProduk(data);
     };
 
-    // Cek Upload Gambar Baru
     if (file) {
-        if (file.size > 2 * 1024 * 1024) return myAlert('File Besar', 'Maksimal 2MB', 'warning');
-        
         const reader = new FileReader();
         reader.onload = function(e) {
-            payload.gambar = {
-                data: e.target.result.split(',')[1],
-                mimeType: file.type,
-                fileName: file.name
-            };
+            payload.gambar = { data: e.target.result.split(',')[1], mimeType: file.type, fileName: file.name };
             kirimUpdate(payload);
         };
         reader.readAsDataURL(file);
@@ -1136,52 +1113,37 @@ function prosesSimpanEdit() {
     }
 }
 
+// Fungsi Render Grid
 function renderProdukGrid(data) {
    const container = document.getElementById('pos-grid-container');
    if(!container) return;
-   
    container.innerHTML = '';
 
    data.forEach(p => {
-      // Index Data: 
-      // 0:ID, 1:Nama, 2:Jual(Isi), 3:Beli, 4:Isi, 5:Kosong, 6:SKU, 7:Kode, 8:Gambar, 9:ModalTabung, 10:HargaJualTabung
-      
+      // p: [0]ID, [1]Nama, [2]Jual, [3]Beli, [4]Isi, [5]Kosong, ..., [9]HPP_Tabung, [10]Jual_Tabung
       let nama = p[1];
-      let harga = Number(p[2]); // Harga Refill (Isi Gas)
+      let hargaRefill = p[2]; 
       let stok = Number(p[4]);
       let linkGambar = p[8]; 
-      
-      // [BARU] Ambil Harga Jual Tabung Kosong (Kolom K / Index 10)
-      let hargaTabung = Number(p[10]) || 0; 
 
-      // Logika Tampilan Gambar
-      let gambarHtml = '';
-      if(linkGambar && linkGambar.length > 5) {
-          gambarHtml = `<img src="${linkGambar}" class="mb-2 rounded" style="width: 100%; height: 100px; object-fit: contain;">`;
-      } else {
-          gambarHtml = `
-           <div class="product-icon mx-auto mb-2">
-              <i class="material-icons">propane</i> 
-           </div>`;
-      }
+      let gambarHtml = (linkGambar && linkGambar.length > 5) 
+          ? `<img src="${linkGambar}" class="mb-2 rounded" style="width: 100%; height: 100px; object-fit: contain;">`
+          : `<div class="product-icon mx-auto mb-2"><i class="material-icons">propane</i></div>`;
 
       let disabledClass = stok <= 0 ? 'opacity-50 grayscale' : '';
       let badgeStok = stok > 0 
           ? `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill" style="font-size:10px;">Stok: ${stok}</span>` 
           : `<span class="badge bg-danger text-white rounded-pill">Habis</span>`;
-      
-      let kodeHtml = p[6] ? `<small class="text-muted d-block mb-1" style="font-size:10px;">${p[6]}</small>` : '';
 
-      // [UPDATE] Onclick sekarang mengirim parameter hargaTabung juga
+      // Kita kirim 'nama' saja ke fungsi klik, nanti dicari detailnya di global array
       container.innerHTML += `
       <div class="col-6 col-md-4 col-lg-3">
          <div class="card h-100 product-card border-0 shadow-sm ${disabledClass}" 
-              onclick="klikProdukPOS('${nama}', ${harga}, ${stok}, ${hargaTabung})">
+              onclick="klikProdukPOS('${nama}')">
             <div class="card-body text-center p-2">
                ${gambarHtml}
-               ${kodeHtml}
                <h6 class="fw-bold text-dark mb-1 text-truncate" title="${nama}" style="font-size: 0.9rem;">${nama}</h6>
-               <div class="text-primary fw-bold mb-2 small">${rupiah(harga)}</div>
+               <div class="text-primary fw-bold mb-2 small">${rupiah(hargaRefill)}</div>
                ${badgeStok}
             </div>
          </div>
@@ -1190,95 +1152,78 @@ function renderProdukGrid(data) {
    });
 }
 
-function klikProdukPOS(nama, harga, stok, hargaTabung) {
+// 1. FUNGSI SAAT KARTU PRODUK DIKLIK (GANTI FUNGSI LAMA DENGAN INI)
+function klikProdukPOS(namaProduk) {
+    // Cari data lengkap produk di globalProdukList
+    // globalProdukList index: 0:ID, 1:Nama, 2:JualRefill, 3:BeliRefill, 4:Stok, ..., 10:JualTabung
+    const produk = globalProdukList.find(p => p[1] === namaProduk);
+    if (!produk) return;
+
+    let stok = Number(produk[4]);
     if(stok <= 0) return myAlert('Stok Habis', 'Produk ini sedang kosong.', 'error');
 
-    // [UPDATE] Simpan data lengkap ke variabel global tempProductPOS
-    tempProductPOS = { 
-        nama: nama, 
-        harga: harga,             // Harga Gas (Refill)
-        stok: stok,
-        hargaTabung: hargaTabung || 0 // Harga Tabung Kosong (Simpan 0 jika tidak ada)
-    };
+    // Cek Mode Transaksi
+    let mode = document.querySelector('input[name="posMode"]:checked').value;
+    
+    let hargaFinal = 0;
+    let labelMode = '';
 
-    // Siapkan Tampilan Modal
-    document.getElementById('qty-modal-title').innerText = nama;
+    if (mode === 'Beli Tabung Baru') {
+        // Harga Baru = Harga Refill (col 2) + Harga Tabung (col 10)
+        let hargaIsi = Number(produk[2]) || 0;
+        let hargaTabung = Number(produk[10]) || 0; 
+        hargaFinal = hargaIsi + hargaTabung;
+        labelMode = 'Tabung Baru';
+    } else {
+        // Harga Refill
+        hargaFinal = Number(produk[2]); 
+        labelMode = 'Tukar (Refill)';
+    }
+
+    // Simpan ke temp untuk modal qty
+    tempProductPOS = { nama: produk[1], harga: hargaFinal, stok: stok, tipe: labelMode };
+
+    // Tampilkan Modal Qty
+    document.getElementById('qty-modal-title').innerText = `${produk[1]} (${labelMode})`;
     const inputQty = document.getElementById('input-qty-pos');
     inputQty.value = 1; 
     document.getElementById('qty-msg-error').classList.add('d-none'); 
 
-    // Reset Pilihan ke Refill dulu
-    const radioRefill = document.getElementById('mode-refill');
-    if(radioRefill) radioRefill.checked = true;
-
     // Buka Modal
     const myModal = new bootstrap.Modal(document.getElementById('modalInputQty'));
     myModal.show();
-
-    // Auto Focus
-    setTimeout(() => {
-        inputQty.focus();
-        inputQty.select(); 
-    }, 500);
+    setTimeout(() => { inputQty.focus(); inputQty.select(); }, 500);
 }
 
-// [FIXED] LOGIKA HARGA SESUAI PERMINTAAN (INPUT = TOTAL)
+// [UPDATE] 3. SUBMIT QTY (Menggunakan data tempProductPOS yang sudah dihitung)
 function submitQtyPOS() {
     const qtyInput = document.getElementById('input-qty-pos');
     const qty = Number(qtyInput.value);
     
-    // Ambil Data Produk
-    const stok = tempProductPOS.stok;
-    const nama = tempProductPOS.nama;
-    
-    // Harga Refill (Harga Normal)
-    let hargaDasar = tempProductPOS.harga; 
-    // Harga Tabung Baru (Dari Database)
-    let hargaTabungTotal = tempProductPOS.hargaTabung || 0; 
-
-    // Default: Harga Refill
-    let hargaFinal = hargaDasar; 
-
     if(qty <= 0) { qtyInput.focus(); return; }
 
-    let mode = document.querySelector('input[name="posMode"]:checked').value;
-    
-    // --- PERBAIKAN LOGIKA DISINI ---
-    if (mode === 'Beli Tabung Baru') {
-        if(hargaTabungTotal > 0) {
-            // Jika di database ada angka (misal 215.000), GUNAKAN ITU SEBAGAI TOTAL
-            hargaFinal = hargaTabungTotal; 
-        } else {
-            // Jika database kosong/0, baru minta input manual (tambahkan ke dasar)
-            let inputManual = prompt(`Harga Tabung Baru belum diset.\nHarga Refill: ${rupiah(hargaDasar)}\nMasukkan HARGA JUAL TOTAL Tabung Baru:`, "0");
-            if(inputManual === null) return;
-            hargaFinal = Number(inputManual.replace(/\D/g, ''));
-        }
-    }
-    // -------------------------------
+    const { nama, harga, stok, tipe } = tempProductPOS;
 
-    // Validasi Stok
-    let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === mode);
-    let currentQtyInCart = (index !== -1) ? keranjangBelanja[index].qty : 0;
+    // Cek stok di keranjang
+    let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === tipe);
+    let currentQty = (index !== -1) ? keranjangBelanja[index].qty : 0;
 
-    if((currentQtyInCart + qty) > stok) {
-        document.getElementById('qty-msg-error').innerText = `Sisa stok hanya ${stok - currentQtyInCart}`;
+    if((currentQty + qty) > stok) {
+        document.getElementById('qty-msg-error').innerText = `Sisa stok hanya ${stok - currentQty}`;
         document.getElementById('qty-msg-error').classList.remove('d-none');
         return;
     }
 
-    // Masuk Keranjang
     if(index !== -1) {
        keranjangBelanja[index].qty += qty;
-       keranjangBelanja[index].hargaSatuan = hargaFinal; 
-       keranjangBelanja[index].total = keranjangBelanja[index].qty * hargaFinal;
+       keranjangBelanja[index].total = keranjangBelanja[index].qty * harga;
     } else {
        keranjangBelanja.push({
           produkNama: nama,
           qty: qty,
-          tipe: mode,
-          hargaSatuan: hargaFinal, 
-          total: qty * hargaFinal
+          tipe: tipe, // 'Tukar (Refill)' atau 'Tabung Baru'
+          hargaSatuan: harga,
+          total: qty * harga
        });
     }
     
@@ -1403,68 +1348,90 @@ resetKeranjang = function() {
 }
 
 function simpanProduk() {
+    // 1. Ambil File Gambar
     const fileInput = document.getElementById('prod-file-gambar');
     const file = fileInput.files[0];
     
-    // Ambil data form lainnya
+    // 2. Helper untuk membersihkan format Ribuan (titik) menjadi angka biasa
+    const cleanNum = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value.replace(/\./g, '') : '0';
+    };
+
+    // 3. Susun Data Form (Termasuk Field Baru untuk Tabung)
     const dataForm = {
         sku: document.getElementById('prod-sku').value,
         kode: document.getElementById('prod-kode').value,
         nama: document.getElementById('prod-nama').value, 
         
-        // [PERBAIKAN DISINI] Hapus tanda titik sebelum kirim ke server
-        hargaJual: document.getElementById('prod-jual').value.replace(/\./g, ''), 
-        hargaBeli: document.getElementById('prod-beli').value.replace(/\./g, ''), 
+        // Harga Refill (Isi Ulang)
+        hargaJual: cleanNum('prod-jual'), 
+        hargaBeli: cleanNum('prod-beli'), 
         
-        // [WAJIB ADA] Pastikan 2 baris ini ada agar Code.gs bisa membacanya!
-          modalTabung: document.getElementById('prod-modal-tabung').value.replace(/\./g, '') || 0,
-          hargaJualTabung: document.getElementById('prod-jual-tabung').value.replace(/\./g, '') || 0,
-              
-        stokIsi: document.getElementById('prod-isi').value,
+        // [BARU] Harga Tabung Kosong
+        hargaJualTabung: cleanNum('prod-jual-tabung'),
+        hargaBeliTabung: cleanNum('prod-beli-tabung'),
+        
+        stokIsi: document.getElementById('prod-isi').value, 
         stokKosong: document.getElementById('prod-kosong').value,
-        gambar: '' 
+        gambar: null // Default null, nanti diisi jika ada file
     };
 
-    // Fungsi untuk mengirim data ke Google Script
-        const kirimData = (finalData) => {
-            loading(true); // Nyalakan loading
-            google.script.run.withSuccessHandler(() => { 
+    // Validasi Sederhana
+    if(!dataForm.nama) return myAlert('Error', 'Nama produk wajib diisi!', 'warning');
+
+    // 4. Fungsi Pengirim Data ke Backend (Google Script)
+    const kirimData = (finalData) => {
+        loading(true); // Nyalakan loading
+        
+        google.script.run
+            .withSuccessHandler(() => { 
                 loading(false); // Matikan loading
                 document.getElementById('loading-upload')?.classList.add('d-none');
                 
                 // Reset Preview & Input File
-                document.getElementById('img-preview').classList.add('d-none');
-                document.getElementById('img-preview').src = '';
+                const imgPrev = document.getElementById('img-preview');
+                if(imgPrev) {
+                    imgPrev.classList.add('d-none');
+                    imgPrev.src = '';
+                }
                 
                 // Tutup Modal
-                bootstrap.Modal.getInstance(document.getElementById('modalProduk')).hide(); 
+                const modalEl = document.getElementById('modalProduk');
+                const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if(modalInstance) modalInstance.hide(); 
                 
-                // Refresh Tabel
+                // Refresh Tabel Data Produk
                 loadProduk(); 
                 
-                // Reset Form
+                // Reset Form Input
                 document.querySelectorAll('#modalProduk input').forEach(i => i.value = '');
 
-                // --- TAMBAHKAN INI AGAR MUNCUL POPUP ---
+                // Tampilkan Pesan Sukses
                 myAlert('Sukses', 'Produk berhasil disimpan ke database!', 'success');
-
-            }).tambahProduk(finalData);
-        };
+            })
+            .withFailureHandler((err) => {
+                loading(false);
+                myAlert('Gagal', err.message, 'error');
+            })
+            .tambahProduk(finalData); // Panggil fungsi di Code.gs
+    };
         
-    // LOGIKA UPLOAD GAMBAR
+    // 5. LOGIKA UPLOAD GAMBAR
     if (file) {
-        // Validasi ukuran (misal maks 2MB agar tidak berat)
+        // Validasi ukuran (Maks 2MB)
         if (file.size > 2 * 1024 * 1024) {
             return myAlert('File Terlalu Besar', 'Maksimal ukuran gambar 2MB', 'error');
         }
 
-        document.getElementById('loading-upload').classList.remove('d-none'); // Tampilkan loading teks
+        const loadingText = document.getElementById('loading-upload');
+        if(loadingText) loadingText.classList.remove('d-none'); // Tampilkan teks loading upload
         
         const reader = new FileReader();
         reader.onload = function(e) {
             // Isi properti gambar dengan data file (base64)
             dataForm.gambar = {
-                data: e.target.result.split(',')[1], // Ambil base64-nya saja
+                data: e.target.result.split(',')[1], // Ambil string base64 murni
                 mimeType: file.type,
                 fileName: 'PROD-' + Date.now() // Nama file unik
             };
@@ -1472,8 +1439,7 @@ function simpanProduk() {
         };
         reader.readAsDataURL(file);
     } else {
-        // Jika tidak ada gambar, langsung kirim data kosong
-        dataForm.gambar = null;
+        // Jika tidak ada gambar, kirim dataForm dengan gambar = null
         kirimData(dataForm);
     }
 }
