@@ -274,13 +274,13 @@
                   <h4 class="fw-bold m-0">Katalog Produk</h4>
                   <small class="text-muted">Klik produk untuk menambah ke keranjang</small>
                 </div>
-                <div class="bg-white p-1 rounded-pill shadow-sm border d-flex">
-                  <input type="radio" class="btn-check" name="posMode" id="mode-tukar" value="Tukar (Refill)" checked>
-                  <label class="btn btn-sm btn-outline-danger rounded-pill px-3 border-0 fw-bold" for="mode-tukar">Refill / Tukar</label>
+              <div class="bg-white p-1 rounded-pill shadow-sm border d-flex">
+                <input type="radio" class="btn-check" name="posMode" id="mode-tukar" value="Tukar (Refill)" checked onchange="filterProdukGrid()">
+                <label class="btn btn-sm btn-outline-danger rounded-pill px-3 border-0 fw-bold" for="mode-tukar">Refill / Tukar</label>
 
-                  <input type="radio" class="btn-check" name="posMode" id="mode-baru" value="Beli Tabung Baru">
-                  <label class="btn btn-sm btn-outline-danger rounded-pill px-3 border-0 fw-bold" for="mode-baru">Tabung Baru</label>
-                </div>
+                <input type="radio" class="btn-check" name="posMode" id="mode-baru" value="Beli Tabung Baru" onchange="filterProdukGrid()">
+                <label class="btn btn-sm btn-outline-danger rounded-pill px-3 border-0 fw-bold" for="mode-baru">Beli Baru (+Wadah)</label>
+              </div>
               </div>
 
               <div class="pos-search-bar d-flex align-items-center mb-4">
@@ -620,11 +620,11 @@
               </div>
             </div>
 
-            <h6 class="text-uppercase text-muted fw-bold mb-3 small" style="letter-spacing: 1px;">Harga (Tabung Kosong)</h6>
+            <h6 class="text-uppercase text-muted fw-bold mb-3 small" style="letter-spacing: 1px;">Harga (Wadah Kosong)</h6>
             <div class="p-3 bg-light rounded border mb-4">
                 <div class="row g-3">
                   <div class="col-md-6">
-                      <label class="form-label small fw-bold text-dark">Harga Jual Tabung</label>
+                      <label class="form-label small fw-bold text-dark">Harga Jual</label>
                       <div class="input-group">
                           <span class="input-group-text bg-white border fw-bold text-dark">Rp</span>
                           <input id="edit-prod-jual-tabung" type="text" class="form-control border fw-bold text-dark" onkeyup="formatRupiahInput(this)" placeholder="Cth: 198.000">
@@ -632,7 +632,7 @@
                       <div class="form-text small mt-1" style="font-size: 11px;">Ditambahkan saat transaksi "Tabung Baru".</div>
                   </div>
                   <div class="col-md-6">
-                      <label class="form-label small fw-bold text-muted">Harga Modal Tabung (HPP)</label>
+                      <label class="form-label small fw-bold text-muted">Harga Modal (HPP)</label>
                       <div class="input-group">
                           <span class="input-group-text bg-white border-0 text-muted">Rp</span>
                           <input id="edit-prod-beli-tabung" type="text" class="form-control bg-white border-0" onkeyup="formatRupiahInput(this)" placeholder="Cth: 189.000">
@@ -1527,7 +1527,7 @@
                 </div>
 
                 <div class="p-3 rounded border mb-4" style="background-color: #f8f9fa;">
-                    <label class="small fw-bold mb-2 text-dark">Harga Tabung Kosong (Opsional)</label>
+                    <label class="small fw-bold mb-2 text-dark">Harga Kosongan (Opsional)</label>
                     <div class="row g-3">
                         <div class="col-6">
                             <label class="small text-muted mb-1" style="font-size: 10px;">Jual Tabung</label>
@@ -1945,30 +1945,52 @@
     </div>
   </div>
 
-  <div class="modal fade" id="modalInputQty" tabindex="-1">
-    <div class="modal-dialog modal-sm modal-dialog-centered">
-      <div class="modal-content shadow-lg border-0">
-        <div class="modal-header border-0 pb-0 justify-content-center">
-          <h6 class="modal-title fw-bold text-center" id="qty-modal-title">Nama Produk</h6>
+<div class="modal fade" id="modalInputQty" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+      
+      <div class="modal-header border-0 py-3 text-white" style="background: linear-gradient(45deg, #0d6efd, #0a58ca);">
+        <div>
+            <h6 class="modal-title fw-bold" id="qty-modal-title" style="font-size: 1rem;">Nama Produk</h6>
+            <small class="opacity-75" style="font-size: 0.75rem;">Edit Harga & Jumlah</small>
         </div>
-        <div class="modal-body text-center">
-          <label class="small text-muted mb-2">Masukkan Jumlah (Qty)</label>
-          <input type="number" id="input-qty-pos" class="form-control form-control-lg text-center fw-bold fs-2 text-primary border-primary" value="1" min="1">
-          <div class="small text-danger mt-1 d-none" id="qty-msg-error">Stok tidak cukup!</div>
-        </div>
-        <div class="modal-footer border-0 pt-0">
-          <div class="row w-100 g-2">
-            <div class="col-6">
-              <button type="button" class="btn btn-light w-100 rounded-pill" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body p-4 bg-light">
+        
+        <div id="box-toggle-tabung" class="d-none mb-3 p-3 rounded-3 border d-flex justify-content-between align-items-center bg-white shadow-sm transition-all">
+            <div style="line-height: 1.2;">
+                <span class="d-block fw-bold text-dark" id="lbl-toggle-main" style="font-size: 0.9rem;">Tabung + Isi</span>
+                <small class="text-muted" id="lbl-toggle-sub" style="font-size: 0.7rem;">Paket Lengkap</small>
             </div>
-            <div class="col-6">
-              <button type="button" class="btn btn-primary w-100 rounded-pill fw-bold" onclick="submitQtyPOS()">ENTER</button>
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="toggle-isi-tabung" checked onchange="hitungHargaToggle()" style="transform: scale(1.3); cursor: pointer;">
             </div>
-          </div>
         </div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body p-2">
+                <label class="small fw-bold text-muted mb-1 ps-1">Harga Satuan (Rp)</label>
+                <input type="text" id="input-harga-custom" class="form-control border-0 fw-bold text-primary text-center" style="font-size: 1.5rem; background: transparent;" onkeyup="formatRupiahInput(this)">
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between bg-white p-1 rounded-pill border shadow-sm mb-3">
+             <button type="button" class="btn btn-light rounded-circle text-primary fw-bold" onclick="ubahQtyModal(-1)" style="width: 40px; height: 40px;">-</button>
+             <input type="number" id="input-qty-pos" class="form-control border-0 text-center fw-bold fs-5 bg-transparent" value="1" min="1" style="width: 80px;">
+             <button type="button" class="btn btn-primary rounded-circle fw-bold shadow-sm" onclick="ubahQtyModal(1)" style="width: 40px; height: 40px;">+</button>
+        </div>
+
+        <div id="qty-msg-error" class="text-danger small text-center mb-2 fw-bold d-none"></div>
+
+        <button onclick="submitQtyPOS()" class="btn btn-primary w-100 py-2 fw-bold rounded-pill shadow btn-animate-bounce">
+            <i class="material-icons align-middle me-1" style="font-size:18px">shopping_cart_checkout</i> SIMPAN
+        </button>
       </div>
     </div>
   </div>
+</div>
 
   <div class="modal fade" id="modalInvoice" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg">
