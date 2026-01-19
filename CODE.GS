@@ -12,7 +12,7 @@ function include(filename) {
 
 function setupDatabase() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-const sheets = [
+  const sheets = [
     {name: 'USERS', header: ['Username', 'Password', 'Role', 'Nama']},
     // [UPDATE] Menambah kolom Harga_Beli_Tabung & Harga_Jual_Tabung (Index 9 & 10)
     {name: 'PRODUK', header: ['ID', 'Nama_Produk', 'Harga_Jual', 'Harga_Beli', 'Stok_Isi', 'Stok_Kosong', 'SKU', 'Kode', 'Link_Gambar', 'Harga_Beli_Tabung', 'Harga_Jual_Tabung']},
@@ -551,10 +551,6 @@ function hapusProduk(nama) {
   }
 }
 
-// --- MODIFIKASI: TRANSAKSI & KASIR ---
-
-// GANTI function simpanTransaksiBulk(dataTransaksi) dengan ini:
-
 function simpanTransaksiBulk(dataTransaksi) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const prodSheet = ss.getSheetByName('PRODUK');
@@ -568,64 +564,99 @@ function simpanTransaksiBulk(dataTransaksi) {
   let totalBelanja = 0;
   let summaryProduk = [];
   
-  // Status Transaksi
-  let statusTrx = (dataTransaksi.metode === 'Hutang') ? 'Belum Lunas' : 'Lunas';
+  // Array untuk menampung update yang akan dilakukan (agar tidak update satu-satu di awal)
+  let updatesToExecute = [];
 
-  // 1. LOOP BARANG (Stok)
-  dataTransaksi.items.forEach(item => {
-    let itemFound = false;
-    for (let i = 1; i < prodData.length; i++) {
-      if (prodData[i][1] == item.produkNama) {
-        let curIsi = Number(prodData[i][4]);
-        let curKosong = Number(prodData[i][5]);
-        
-        if (curIsi < item.qty) throw new Error(`Stok ${item.produkNama} Habis! Sisa: ${curIsi}`);
+  // --- TAHAP 1: VALIDASI STOK (Loop Cek Dulu) ---
+  // Kita cek semua item. Jika ada satu aja yang stoknya kurang, STOP & ERROR.
+  
+  for (let x = 0; x < dataTransaksi.items.length; x++) {
+      let item = dataTransaksi.items[x];
+      let itemFound = false;
 
-        let newIsi = curIsi - item.qty;
-        let newKosong = curKosong;
-        if (item.tipe === 'Tukar (Refill)') {
-           newKosong = curKosong + Number(item.qty); 
-        }
-        
-        prodSheet.getRange(i + 1, 5).setValue(newIsi);
-        prodSheet.getRange(i + 1, 6).setValue(newKosong);
-        itemFound = true;
-        break;
+      for (let i = 1; i < prodData.length; i++) {
+          if (prodData[i][1] == item.produkNama) {
+              
+              let curIsi = Number(prodData[i][4]);    // Stok Isi
+              let curKosong = Number(prodData[i][5]); // Stok Wadah/Kosong
+              let qty = Number(item.qty);
+              let tipe = String(item.tipe).toLowerCase();
+
+              // Siapkan variable hasil hitungan
+              let newIsi = curIsi;
+              let newKosong = curKosong;
+
+              // --- LOGIKA STOK (WADAH / REFILL) ---
+              if (tipe.includes('kosong')) {
+                  // KASUS A: Beli Wadah Kosong -> Cek Stok Kosong
+                  if (curKosong < qty) throw new Error(`Stok Wadah ${item.produkNama} Kurang! Sisa: ${curKosong}`);
+                  newKosong = curKosong - qty;
+              
+              } else if (tipe.includes('baru') || (tipe.includes('isi') && tipe.includes('wadah'))) {
+                  // KASUS B: Beli Baru (Isi + Wadah) -> Cek Stok Isi
+                  if (curIsi < qty) throw new Error(`Stok Isi ${item.produkNama} Kurang! Sisa: ${curIsi}`);
+                  newIsi = curIsi - qty;
+                  // Stok Wadah TETAP (Tidak berubah karena fisik wadah keluar selamanya sebagai barang dagangan)
+
+              } else {
+                  // KASUS C: Refill / Tukar -> Cek Stok Isi
+                  if (curIsi < qty) throw new Error(`Stok Isi ${item.produkNama} Kurang! Sisa: ${curIsi}`);
+                  newIsi = curIsi - qty;
+                  newKosong = curKosong + qty; // Terima cangkang dari user
+              }
+
+              // Simpan rencana update ke array (Row Index, New Isi, New Kosong)
+              updatesToExecute.push({
+                  rowIndex: i + 1,
+                  valIsi: newIsi,
+                  valKosong: newKosong,
+                  nama: item.produkNama
+              });
+              
+              // Update data di memory sementara (prodData) agar item berikutnya (jika produk sama) membaca stok terbaru
+              prodData[i][4] = newIsi;
+              prodData[i][5] = newKosong;
+
+              itemFound = true;
+              break;
+          }
       }
-    }
-    
-    if(!itemFound) throw new Error(`Produk ${item.produkNama} tidak ditemukan.`);
+      
+      if(!itemFound) throw new Error(`Produk ${item.produkNama} tidak ditemukan di Database.`);
+  }
 
-    // Catat Transaksi
-    trxSheet.appendRow([
-      idTrxMaster, waktu, dataTransaksi.pelanggan, item.produkNama, item.qty, 
-      item.total, item.tipe, dataTransaksi.kasir, dataTransaksi.metode, 
-      dataTransaksi.jatuhTempo, statusTrx 
-    ]);
+  // --- TAHAP 2: EKSEKUSI (Simpan ke Database) ---
+  // Jika kode sampai sini, berarti SEMUA stok aman. Baru kita tulis ke Sheet.
 
-    totalBelanja += Number(item.total);
-    summaryProduk.push(`${item.produkNama} (${item.qty})`);
+  updatesToExecute.forEach(upd => {
+      prodSheet.getRange(upd.rowIndex, 5).setValue(upd.valIsi);    // Update Stok Isi
+      prodSheet.getRange(upd.rowIndex, 6).setValue(upd.valKosong); // Update Stok Wadah
   });
 
-  // LOGIKA KEUANGAN
+  // --- TAHAP 3: CATAT TRANSAKSI ---
+  let statusTrx = (dataTransaksi.metode === 'Hutang') ? 'Belum Lunas' : 'Lunas';
+  
+  dataTransaksi.items.forEach(item => {
+      trxSheet.appendRow([
+        idTrxMaster, waktu, dataTransaksi.pelanggan, item.produkNama, item.qty, 
+        item.total, item.tipe, dataTransaksi.kasir, dataTransaksi.metode, 
+        dataTransaksi.jatuhTempo, statusTrx 
+      ]);
+      totalBelanja += Number(item.total);
+      summaryProduk.push(`${item.produkNama} (${item.qty})`);
+  });
+
+  // Catat Keuangan
   if (dataTransaksi.metode !== 'Hutang') {
       keuSheet.appendRow([
-        'FIN-' + idTrxMaster, 
-        waktu, 
-        'Pemasukan', 
-        'Penjualan Gas', 
-        totalBelanja, 
-        `Penjualan: ${summaryProduk.join(', ')}`,
-        dataTransaksi.metode 
+        'FIN-' + idTrxMaster, waktu, 'Pemasukan', 'Penjualan Gas', 
+        totalBelanja, `Penjualan: ${summaryProduk.join(', ')}`, dataTransaksi.metode 
       ]);
   }
   
-  // [TAMBAHAN WAJIB] Paksa simpan detik ini juga
   SpreadsheetApp.flush(); 
-  
   return "Transaksi Berhasil Disimpan!";
 }
-
 function getDataPiutang() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TRANSAKSI');
   if (!sheet) return [];
@@ -1856,6 +1887,7 @@ function updateProduk(form) {
 
 function getLaporanDetail(startStr, endStr) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
   const startDate = new Date(startStr); startDate.setHours(0,0,0,0);
   const endDate = new Date(endStr); endDate.setHours(23,59,59,999);
 
@@ -1868,55 +1900,87 @@ function getLaporanDetail(startStr, endStr) {
     hpp: 0,
     pengeluaran: 0,
     pembelian: 0,
-    nilaiStok: 0,
+    nilaiStok: 0,      // Total Aset Stok
+    asetFisik: 0,      // [BARU] Nilai Cangkang
+    asetDagang: 0,     // [BARU] Nilai Isi
     labaKotor: 0,
     labaBersih: 0,
     metodeBayar: {},
     listPengeluaran: []
   };
 
-  // [UPDATE] A. DATA PRODUK MASTER (Mapping Harga Refill & Tabung)
+  // 1. MAPPING DATA PRODUK & HITUNG ASET STOK (LOGIKA BARU)
   let mapProduk = {};
+  
   prodData.forEach(p => {
-    // p[1]:Nama, p[3]:HPP Isi, p[9]:HPP Tabung
+    // p[3]: Harga Beli Isi (Refill)
+    // p[4]: Stok Isi
+    // p[5]: Stok Wadah Kosong
+    // p[9]: Harga Beli Tabung (Cangkang)
+
+    let hppIsi = Number(p[3]) || 0;
+    let hppTabung = Number(p[9]) || 0;
+    let stokIsi = Number(p[4]) || 0;
+    let stokKosong = Number(p[5]) || 0;
+
     mapProduk[p[1]] = {
-        hppIsi: Number(p[3]) || 0,
-        hppTabung: Number(p[9]) || 0,
-        stokIsi: Number(p[4]) || 0
+        hppIsi: hppIsi,
+        hppTabung: hppTabung,
+        stokIsi: stokIsi
     };
-    // Hitung Nilai Aset Stok (Hanya Isi, karena Tabung aset tetap/inventory beda)
-    // Atau jika mau hitung aset tabung juga boleh ditambahkan
-    laporan.nilaiStok += (Number(p[4]) * Number(p[3])); 
+    
+    // --- RUMUS ASET TOTAL ---
+    
+    // A. Nilai Fisik (Semua tabung, baik isi maupun kosong)
+    //    Rumus: (Jumlah Isi + Jumlah Kosong) * Harga Tabung
+    let nilaiCangkang = (stokIsi + stokKosong) * hppTabung;
+    
+    // B. Nilai Dagangan (Hanya yang ada isinya)
+    //    Rumus: Jumlah Isi * Harga Refill
+    let nilaiIsi = stokIsi * hppIsi;
+
+    // Total Aset Produk ini
+    laporan.asetFisik += nilaiCangkang;
+    laporan.asetDagang += nilaiIsi;
+    laporan.nilaiStok += (nilaiCangkang + nilaiIsi);
   });
 
-  // [UPDATE] B. HITUNG TRANSAKSI DENGAN LOGIKA BARU
+  // 2. HITUNG TRANSAKSI
   trxData.forEach(row => {
     let tgl = new Date(row[1]);
+    
     if (tgl >= startDate && tgl <= endDate) {
         let produk = row[3];
         let qty = Number(row[4]);
         let totalJual = Number(row[5]);
-        let tipe = String(row[6]).toLowerCase(); // "Tukar (Refill)" atau "Beli Tabung Baru"
+        let tipe = String(row[6]).toLowerCase(); 
         let status = row[10];
 
         if(!String(status).includes('Retur')) {
-            // 1. Pendapatan
             laporan.pendapatan += totalJual;
 
-            // 2. HPP DINAMIS
+            // Hitung HPP (Modal Terjual)
             let infoProd = mapProduk[produk];
             if(infoProd) {
-                let modalSatuan = infoProd.hppIsi; // Default Refill (16.000)
+                let modalSatuan = 0;
+
+                if (tipe.includes('kosong')) {
+                    // Jual Wadah Kosong -> Modal = HPP Tabung
+                    modalSatuan = infoProd.hppTabung;
                 
-                // Jika tipe transaksi mengandung kata "baru", tambahkan modal tabung
-                if(tipe.includes('baru')) {
-                    modalSatuan += infoProd.hppTabung; // 16.000 + 189.000 = 205.000
+                } else if (tipe.includes('baru') || (tipe.includes('isi') && tipe.includes('wadah'))) {
+                    // Jual Paket -> Modal = HPP Isi + HPP Tabung
+                    modalSatuan = infoProd.hppIsi + infoProd.hppTabung;
+                
+                } else {
+                    // Refill -> Modal = HPP Isi
+                    modalSatuan = infoProd.hppIsi;
                 }
-                
+
                 laporan.hpp += (qty * modalSatuan);
             }
 
-            // 3. Metode Bayar
+            // Metode Bayar
             let metode = row[8];
             if(!laporan.metodeBayar[metode]) laporan.metodeBayar[metode] = 0;
             laporan.metodeBayar[metode] += totalJual;
@@ -1924,17 +1988,18 @@ function getLaporanDetail(startStr, endStr) {
     }
   });
 
-  // ... (Sisa fungsi getLaporanDetail sama untuk Keuangan & Finalisasi) ...
-  // C. Hitung Keuangan
+  // 3. HITUNG PENGELUARAN
   keuData.forEach(row => {
-      // (Logika sama seperti sebelumnya)
       let tgl = new Date(row[1]);
       if (tgl >= startDate && tgl <= endDate) {
           if (row[2] === 'Pengeluaran') {
-             if (row[3] === 'Pembelian Stok') laporan.pembelian += Number(row[4]);
-             else if (row[3] !== 'Retur Penjualan') {
+             if (row[3] === 'Pembelian Stok') {
+                 laporan.pembelian += Number(row[4]);
+             } else if (row[3] !== 'Retur Penjualan') {
                  laporan.pengeluaran += Number(row[4]);
-                 laporan.listPengeluaran.push({id:row[0], tanggal:row[1], kategori:row[3], ket:row[5], jumlah:Number(row[4])});
+                 laporan.listPengeluaran.push({
+                    id: row[0], tanggal: row[1], kategori: row[3], ket: row[5], jumlah: Number(row[4])
+                 });
              }
           }
       }
