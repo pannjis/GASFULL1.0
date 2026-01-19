@@ -1022,47 +1022,53 @@ function loadProduk() {
     }).getData('PRODUK');
 }
 
-// 1. Fungsi Membuka Halaman Edit & Isi Data
+// [FIXED] FUNGSI BUKA HALAMAN EDIT (Agar Data Tidak Hilang)
 function bukaHalamanEdit(id) {
-    // Cari data produk di variabel global berdasarkan ID (Kolom 0)
+    // 1. Cari Data Produk berdasarkan ID
     const produk = globalProdukList.find(row => row[0] == id);
-    
     if (!produk) return myAlert('Error', 'Data produk tidak ditemukan.', 'error');
 
-    // Isi Form Edit dengan Data Lama
-    document.getElementById('edit-prod-id').value = produk[0]; // ID
+    // 2. Isi Form dengan Data yang Ada
+    document.getElementById('edit-prod-id').value = produk[0];
     document.getElementById('edit-prod-nama').value = produk[1];
-    document.getElementById('edit-prod-jual').value = produk[2];
-    document.getElementById('edit-prod-beli').value = produk[3];
-
-    // [BARU] Isi input Modal Tabung (Index 9)
-    // Cek element ada atau tidak (untuk keamanan jika lupa update HTML)
-    const elModal = document.getElementById('edit-prod-modal-tabung');
-    if(elModal) elModal.value = produk[9] || 0;
     
-    // Stok (Read Only)
-    document.getElementById('edit-prod-isi').value = produk[4];
-    document.getElementById('edit-prod-kosong').value = produk[5];
+    // Format angka (hapus .0 di belakang koma jika ada)
+    document.getElementById('edit-prod-jual').value = Number(produk[2]); 
+    document.getElementById('edit-prod-beli').value = Number(produk[3]);
+    
+    // Stok (Read Only biasanya)
+    // document.getElementById('edit-prod-isi').value = produk[4]; 
 
-    // Info Tambahan
-    document.getElementById('edit-prod-sku').value = produk[6] || '';
-    document.getElementById('edit-prod-kode').value = produk[7] || '';
+    document.getElementById('edit-prod-sku').value = produk[6];
+    document.getElementById('edit-prod-kode').value = produk[7];
 
-    // Preview Gambar Lama
+    // [BAGIAN PENTING YANG HILANG SEBELUMNYA]
+    // Kita ambil data dari Kolom J (Index 9) dan Kolom K (Index 10)
+    // Pastikan ID element sesuai dengan yang ada di HTML
+    
+    const elModal = document.getElementById('edit-prod-modal-tabung');
+    const elJual  = document.getElementById('edit-prod-jual-tabung');
+
+    if(elModal) elModal.value = Number(produk[9]) || 0;  // Modal Tabung
+    if(elJual)  elJual.value  = Number(produk[10]) || 0; // Harga Jual Tabung (Yg tadi 215.000)
+
+    // 3. Tampilkan Preview Gambar
     const imgUrl = produk[8];
     const imgPrev = document.getElementById('edit-img-preview');
-    if(imgUrl && imgUrl.includes('http')) {
+    const imgDiv = document.getElementById('edit-img-preview-container');
+    
+    if (imgUrl && imgUrl !== '') {
         imgPrev.src = imgUrl;
-        imgPrev.classList.remove('d-none');
+        imgDiv.classList.remove('d-none');
     } else {
-        imgPrev.src = ''; 
-        imgPrev.classList.add('d-none');
+        imgDiv.classList.add('d-none');
+        imgPrev.src = '';
     }
 
     // Reset Input File
     document.getElementById('edit-prod-file').value = '';
 
-    // Pindah Tampilan ke Halaman Edit
+    // 4. Ganti Tampilan ke Halaman Edit
     showPage('edit-produk');
 }
 
@@ -1094,6 +1100,7 @@ function prosesSimpanEdit() {
         kode: document.getElementById('edit-prod-kode').value,
         // [BARU] Kirim data update
         modalTabung: document.getElementById('edit-prod-modal-tabung').value || 0,
+        hargaJualTabung: document.getElementById('edit-prod-jual-tabung').value || 0,
         gambar: null // Default null (tidak ganti)
     };
 
@@ -1221,13 +1228,19 @@ function klikProdukPOS(nama, harga, stok, hargaTabung) {
     }, 500);
 }
 
-// 2. FUNGSI TOMBOL "ENTER" DI MODAL
+// 2. FUNGSI TOMBOL "ENTER" DI MODAL (SUDAH DIPERBAIKI)
 function submitQtyPOS() {
     const qtyInput = document.getElementById('input-qty-pos');
     const qty = Number(qtyInput.value);
+    
+    // Ambil data produk dari memory
     const stok = tempProductPOS.stok;
     const nama = tempProductPOS.nama;
-    const harga = tempProductPOS.harga;
+    
+    // [PERBAIKAN 1] Siapkan variabel harga dasar & harga tabung
+    let hargaDasar = tempProductPOS.harga;       // Harga Isi (Refill)
+    let hargaTabung = tempProductPOS.hargaTabung || 0; // Harga Tabung Kosong
+    let hargaFinal = hargaDasar; // Default harga final = harga dasar
 
     // Validasi Input
     if(qty <= 0) {
@@ -1238,27 +1251,42 @@ function submitQtyPOS() {
     // Cek Mode Transaksi (Refill / Baru)
     let mode = document.querySelector('input[name="posMode"]:checked').value;
     
-    // Cek apakah barang sudah ada di keranjang untuk menghitung total stok yg dibutuhkan
+    // [PERBAIKAN 2] Logika Hitung Harga Final
+    if (mode === 'Beli Tabung Baru') {
+        if(hargaTabung > 0) {
+            // Jika harga tabung ada di database, tambahkan langsung
+            hargaFinal = hargaDasar + hargaTabung;
+        } else {
+            // Jika tidak ada (0), minta input manual
+            let inputManual = prompt(`Harga Tabung Kosong belum diset.\nHarga Gas: ${rupiah(hargaDasar)}\nMasukkan Harga Tabung Kosong:`, "0");
+            if(inputManual === null) return; // Batal
+            let tambahan = Number(inputManual.replace(/\D/g, ''));
+            hargaFinal = hargaDasar + tambahan;
+        }
+    }
+
+    // Cek apakah barang sudah ada di keranjang
     let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === mode);
     let currentQtyInCart = (index !== -1) ? keranjangBelanja[index].qty : 0;
 
-    // Validasi Stok (Input Baru + Yang Sudah Ada di Keranjang > Stok Tersedia?)
+    // Validasi Stok
     if((currentQtyInCart + qty) > stok) {
         document.getElementById('qty-msg-error').innerText = `Sisa stok hanya ${stok - currentQtyInCart}`;
         document.getElementById('qty-msg-error').classList.remove('d-none');
         return;
     }
 
+    // PROSES MASUK KERANJANG
     if(index !== -1) {
        keranjangBelanja[index].qty += qty;
-       keranjangBelanja[index].hargaSatuan = hargaFinal; // <--- Pakai Harga Final
+       keranjangBelanja[index].hargaSatuan = hargaFinal; // <-- Sekarang hargaFinal sudah ada isinya
        keranjangBelanja[index].total = keranjangBelanja[index].qty * hargaFinal;
     } else {
        keranjangBelanja.push({
           produkNama: tempProductPOS.nama,
           qty: qty,
           tipe: mode,
-          hargaSatuan: hargaFinal, // <--- Pakai Harga Final
+          hargaSatuan: hargaFinal, // <-- Aman
           total: qty * hargaFinal
        });
     }
@@ -1398,9 +1426,10 @@ function simpanProduk() {
         hargaJual: document.getElementById('prod-jual').value.replace(/\./g, ''), 
         hargaBeli: document.getElementById('prod-beli').value.replace(/\./g, ''), 
         
-        // [BARU] Ambil nilai Modal Tabung
-        modalTabung: document.getElementById('prod-modal-tabung').value.replace(/\./g, '') || 0, 
-        
+        // [WAJIB ADA] Pastikan 2 baris ini ada agar Code.gs bisa membacanya!
+          modalTabung: document.getElementById('prod-modal-tabung').value.replace(/\./g, '') || 0,
+          hargaJualTabung: document.getElementById('prod-jual-tabung').value.replace(/\./g, '') || 0,
+              
         stokIsi: document.getElementById('prod-isi').value,
         stokKosong: document.getElementById('prod-kosong').value,
         gambar: '' 
