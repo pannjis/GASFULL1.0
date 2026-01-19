@@ -1119,32 +1119,78 @@ function renderProdukGrid(data) {
    if(!container) return;
    container.innerHTML = '';
 
+   // 1. CEK MODE SAAT INI (REFILL / BARU)
+   let modeEl = document.querySelector('input[name="posMode"]:checked');
+   let mode = modeEl ? modeEl.value : 'Tukar (Refill)';
+
    data.forEach(p => {
-      // p: [0]ID, [1]Nama, [2]Jual, [3]Beli, [4]Isi, [5]Kosong, ..., [9]HPP_Tabung, [10]Jual_Tabung
       let nama = p[1];
-      let hargaRefill = p[2]; 
-      let stok = Number(p[4]);
+      let hargaRefill = Number(p[2]); 
+      let hargaTabung = Number(p[10]) || 0; 
+      
+      let stokIsi = Number(p[4]);    // Stok Gas (Isi)
+      let stokKosong = Number(p[5]); // Stok Tabung Kosong (Cangkang)
       let linkGambar = p[8]; 
 
+      // 2. TENTUKAN HARGA & STOK UTAMA YANG TAMPIL
+      let hargaShow = 0;
+      let stokShow = 0;
+      let labelStok = '';
+      let warnaStok = '';
+
+      if (mode === 'Beli Tabung Baru') {
+          // Mode Baru: Harga Paket
+          hargaShow = hargaRefill + hargaTabung;
+          stokShow = stokIsi; 
+          labelStok = 'Ready Isi'; 
+          warnaStok = 'bg-primary-subtle text-primary border-primary-subtle';
+      } else {
+          // Mode Refill
+          hargaShow = hargaRefill;
+          stokShow = stokIsi;
+          labelStok = 'Ready Isi';
+          warnaStok = 'bg-success-subtle text-success border-success-subtle';
+      }
+
+      // 3. RENDER TAMPILAN GAMBAR
       let gambarHtml = (linkGambar && linkGambar.length > 5) 
           ? `<img src="${linkGambar}" class="mb-2 rounded" style="width: 100%; height: 100px; object-fit: contain;">`
           : `<div class="product-icon mx-auto mb-2"><i class="material-icons">propane</i></div>`;
 
-      let disabledClass = stok <= 0 ? 'opacity-50 grayscale' : '';
-      let badgeStok = stok > 0 
-          ? `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill" style="font-size:10px;">Stok: ${stok}</span>` 
-          : `<span class="badge bg-danger text-white rounded-pill">Habis</span>`;
+      let disabledClass = stokShow <= 0 ? 'opacity-50 grayscale' : '';
+      
+      // Badge Stok Utama (Isi)
+      let badgeStok = stokShow > 0 
+          ? `<span class="badge ${warnaStok} border rounded-pill mb-1" style="font-size:10px;">${labelStok}: ${stokShow}</span>` 
+          : `<span class="badge bg-danger text-white rounded-pill mb-1">Stok Isi Habis</span>`;
+      
+      // [BARU] Tampilan Stok Wadah (Lebih Umum)
+      let infoKosong = `
+        <div class="d-flex justify-content-center align-items-center mt-1" style="font-size: 11px; color: #6c757d;">
+            <span class="material-icons me-1" style="font-size: 12px;">check_box_outline_blank</span>
+            <span>Stok Wadah: <b>${stokKosong}</b></span>
+        </div>
+      `;
 
-      // Kita kirim 'nama' saja ke fungsi klik, nanti dicari detailnya di global array
+      // Harga
+      let hargaHtml = stokShow > 0 
+          ? `<div class="text-dark fw-bold mb-1 transition-all" style="font-size: 0.95rem;">${rupiah(hargaShow)}</div>`
+          : `<div class="text-muted text-decoration-line-through mb-1 small">${rupiah(hargaShow)}</div>`;
+
       container.innerHTML += `
       <div class="col-6 col-md-4 col-lg-3">
          <div class="card h-100 product-card border-0 shadow-sm ${disabledClass}" 
               onclick="klikProdukPOS('${nama}')">
-            <div class="card-body text-center p-2">
-               ${gambarHtml}
-               <h6 class="fw-bold text-dark mb-1 text-truncate" title="${nama}" style="font-size: 0.9rem;">${nama}</h6>
-               <div class="text-primary fw-bold mb-2 small">${rupiah(hargaRefill)}</div>
-               ${badgeStok}
+            <div class="card-body text-center p-2 d-flex flex-column justify-content-between">
+               <div>
+                   ${gambarHtml}
+                   <h6 class="fw-bold text-dark mb-1 text-truncate" title="${nama}" style="font-size: 0.85rem;">${nama}</h6>
+                   ${hargaHtml}
+               </div>
+               
+               <div class="mt-2">
+                   ${badgeStok}
+                   ${infoKosong} </div>
             </div>
          </div>
       </div>
@@ -1152,78 +1198,207 @@ function renderProdukGrid(data) {
    });
 }
 
-// 1. FUNGSI SAAT KARTU PRODUK DIKLIK (GANTI FUNGSI LAMA DENGAN INI)
+// A. HELPER BARU: Ubah Qty di dalam Modal
+function ubahQtyModal(delta) {
+    const el = document.getElementById('input-qty-pos');
+    let val = Number(el.value) || 1;
+    val += delta;
+    if(val < 1) val = 1;
+    el.value = val;
+}
+
+// B. UPDATE: Fungsi Saat Produk Diklik
 function klikProdukPOS(namaProduk) {
-    // Cari data lengkap produk di globalProdukList
-    // globalProdukList index: 0:ID, 1:Nama, 2:JualRefill, 3:BeliRefill, 4:Stok, ..., 10:JualTabung
     const produk = globalProdukList.find(p => p[1] === namaProduk);
     if (!produk) return;
 
     let stok = Number(produk[4]);
-    if(stok <= 0) return myAlert('Stok Habis', 'Produk ini sedang kosong.', 'error');
+    
+    // HARGA JUAL
+    let hargaIsi = Number(produk[2]) || 0;
+    let hargaTabung = Number(produk[10]) || 0;
 
-    // Cek Mode Transaksi
+    // [BARU] HARGA BELI (MODAL) - Diambil dari Kolom D (Index 3) & J (Index 9)
+    let hppIsi = Number(produk[3]) || 0;     
+    let hppTabung = Number(produk[9]) || 0;  
+
     let mode = document.querySelector('input[name="posMode"]:checked').value;
     
-    let hargaFinal = 0;
-    let labelMode = '';
+    // Simpan data lengkap ke temp (termasuk HPP)
+    tempProductPOS = { 
+        nama: produk[1], 
+        hargaIsi, 
+        hargaTabung, 
+        hppIsi,       // <--- Simpan HPP Isi
+        hppTabung,    // <--- Simpan HPP Tabung
+        stok, 
+        mode 
+    };
+
+    document.getElementById('qty-modal-title').innerText = produk[1];
+    
+    // Setup UI Toggle & Harga Awal
+    const boxToggle = document.getElementById('box-toggle-tabung');
+    const toggleInput = document.getElementById('toggle-isi-tabung');
+    const inputHarga = document.getElementById('input-harga-custom');
+
+    let hargaAwal = 0;
 
     if (mode === 'Beli Tabung Baru') {
-        // Harga Baru = Harga Refill (col 2) + Harga Tabung (col 10)
-        let hargaIsi = Number(produk[2]) || 0;
-        let hargaTabung = Number(produk[10]) || 0; 
-        hargaFinal = hargaIsi + hargaTabung;
-        labelMode = 'Tabung Baru';
+        boxToggle.classList.remove('d-none');
+        toggleInput.checked = true; 
+        hargaAwal = hargaTabung + hargaIsi;
+        updateTampilanToggle(true); 
     } else {
-        // Harga Refill
-        hargaFinal = Number(produk[2]); 
-        labelMode = 'Tukar (Refill)';
+        boxToggle.classList.add('d-none');
+        hargaAwal = hargaIsi;
+        if(stok <= 0) return myAlert('Stok Habis', 'Stok isi ulang habis.', 'error');
     }
 
-    // Simpan ke temp untuk modal qty
-    tempProductPOS = { nama: produk[1], harga: hargaFinal, stok: stok, tipe: labelMode };
+    inputHarga.value = Number(hargaAwal).toLocaleString('id-ID');
+    document.getElementById('input-qty-pos').value = 1;
+    
+    // Reset Pesan Error
+    const elMsg = document.getElementById('qty-msg-error');
+    elMsg.classList.add('d-none');
+    elMsg.innerText = '';
 
-    // Tampilkan Modal Qty
-    document.getElementById('qty-modal-title').innerText = `${produk[1]} (${labelMode})`;
-    const inputQty = document.getElementById('input-qty-pos');
-    inputQty.value = 1; 
-    document.getElementById('qty-msg-error').classList.add('d-none'); 
+    new bootstrap.Modal(document.getElementById('modalInputQty')).show();
+    setTimeout(() => { document.getElementById('input-qty-pos').focus(); }, 500);
+}
 
-    // Buka Modal
-    const myModal = new bootstrap.Modal(document.getElementById('modalInputQty'));
-    myModal.show();
-    setTimeout(() => { inputQty.focus(); inputQty.select(); }, 500);
+// C. UPDATE: Fungsi Hitung Harga & Animasi UI
+function hitungHargaToggle() {
+    const isFull = document.getElementById('toggle-isi-tabung').checked;
+    const inputHarga = document.getElementById('input-harga-custom');
+
+    // 1. Update UI (Warna & Teks)
+    updateTampilanToggle(isFull);
+
+    // 2. Hitung Harga
+    let hargaBaru = 0;
+    if (isFull) {
+        hargaBaru = tempProductPOS.hargaTabung + tempProductPOS.hargaIsi;
+    } else {
+        hargaBaru = tempProductPOS.hargaTabung;
+    }
+
+    // 3. Update Input Harga dengan efek flash kuning (opsional, biar kelihatan berubah)
+    inputHarga.style.backgroundColor = '#fff3cd'; // Kuning muda
+    setTimeout(() => { inputHarga.style.backgroundColor = 'transparent'; }, 300);
+    
+    inputHarga.value = Number(hargaBaru).toLocaleString('id-ID');
+}
+
+// D. HELPER BARU: Update Tampilan Visual Toggle
+function updateTampilanToggle(isActive) {
+    const box = document.getElementById('box-toggle-tabung');
+    const lblMain = document.getElementById('lbl-toggle-main');
+    const lblSub = document.getElementById('lbl-toggle-sub');
+
+    if (isActive) {
+        // === KONDISI ON: PAKET LENGKAP ===
+        box.style.border = "1px solid #198754";
+        box.style.backgroundColor = "#f0fff4"; 
+        
+        // Ganti istilah jadi "Isi + Wadah"
+        lblMain.innerText = "Isi + Wadah"; 
+        lblMain.className = "d-block fw-bold text-success";
+        lblSub.innerText = "Beli baru (Paket Lengkap)";
+    } else {
+        // === KONDISI OFF: WADAH KOSONG ===
+        box.style.border = "1px solid #dc3545";
+        box.style.backgroundColor = "#fff5f5"; 
+        
+        // Ganti istilah jadi "Wadah Kosong"
+        lblMain.innerText = "Hanya Wadah Kosong";
+        lblMain.className = "d-block fw-bold text-danger";
+        lblSub.innerText = "Jual Tabung/Galon saja";
+    }
 }
 
 // [UPDATE] 3. SUBMIT QTY (Menggunakan data tempProductPOS yang sudah dihitung)
 function submitQtyPOS() {
     const qtyInput = document.getElementById('input-qty-pos');
-    const qty = Number(qtyInput.value);
+    const hargaInput = document.getElementById('input-harga-custom');
+    const elMsg = document.getElementById('qty-msg-error'); 
     
+    const qty = Number(qtyInput.value);
+    const hargaCustom = Number(hargaInput.value.replace(/\./g, '')); 
+
+    // Reset Error
+    elMsg.classList.add('d-none');
+    elMsg.innerText = ''; // Bersihkan teks lama
+
     if(qty <= 0) { qtyInput.focus(); return; }
 
-    const { nama, harga, stok, tipe } = tempProductPOS;
+    const { nama, stok, mode, hppIsi, hppTabung } = tempProductPOS;
 
-    // Cek stok di keranjang
-    let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === tipe);
-    let currentQty = (index !== -1) ? keranjangBelanja[index].qty : 0;
+    // --- 1. TENTUKAN MODAL SAAT INI ---
+    let modalSaatIni = 0;
+    let labelTipe = '';
+    
+    if (mode === 'Beli Tabung Baru') {
+        const isFull = document.getElementById('toggle-isi-tabung').checked;
+        if (isFull) {
+            // [UBAH DISINI] Gunakan istilah umum
+            labelTipe = 'Baru (Isi + Wadah)'; 
+            modalSaatIni = hppIsi + hppTabung; 
+            
+            // Cek Stok Isi
+            let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === labelTipe);
+            let currentQty = (index !== -1) ? keranjangBelanja[index].qty : 0;
+            if((currentQty + qty) > stok) {
+                elMsg.innerText = `Stok isi hanya ${stok}`;
+                elMsg.classList.remove('d-none');
+                return;
+            }
+        } else {
+            // [UBAH DISINI] Gunakan istilah umum
+            labelTipe = 'Wadah Kosong';
+            modalSaatIni = hppTabung; 
+        }
+        } else {
+            labelTipe = 'Tukar (Refill)';
+            modalSaatIni = hppIsi;
 
-    if((currentQty + qty) > stok) {
-        document.getElementById('qty-msg-error').innerText = `Sisa stok hanya ${stok - currentQty}`;
-        document.getElementById('qty-msg-error').classList.remove('d-none');
-        return;
+        // Cek Stok Isi
+        let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === labelTipe);
+        let currentQty = (index !== -1) ? keranjangBelanja[index].qty : 0;
+        if((currentQty + qty) > stok) {
+            elMsg.innerText = `Stok isi hanya ${stok}`;
+            elMsg.classList.remove('d-none');
+            return;
+        }
     }
+
+    // --- 2. VALIDASI HARGA (PRIVASI AMAN) ---
+    if (hargaCustom < modalSaatIni) {
+        // [UPDATE] Pesan Error Generik (Tanpa Angka Modal)
+        elMsg.innerText = "Harga terlalu rendah!";
+        elMsg.classList.remove('d-none');
+        
+        // Efek getar/merah pada input
+        hargaInput.classList.add('is-invalid');
+        setTimeout(() => hargaInput.classList.remove('is-invalid'), 2000);
+        hargaInput.focus();
+        return; // Stop proses
+    }
+
+    // --- SIMPAN KE KERANJANG ---
+    let index = keranjangBelanja.findIndex(item => item.produkNama === nama && item.tipe === labelTipe);
 
     if(index !== -1) {
        keranjangBelanja[index].qty += qty;
-       keranjangBelanja[index].total = keranjangBelanja[index].qty * harga;
+       keranjangBelanja[index].hargaSatuan = hargaCustom;
+       keranjangBelanja[index].total = keranjangBelanja[index].qty * hargaCustom;
     } else {
        keranjangBelanja.push({
           produkNama: nama,
           qty: qty,
-          tipe: tipe, // 'Tukar (Refill)' atau 'Tabung Baru'
-          hargaSatuan: harga,
-          total: qty * harga
+          tipe: labelTipe, 
+          hargaSatuan: hargaCustom, 
+          total: qty * hargaCustom
        });
     }
     
@@ -1262,7 +1437,19 @@ function renderKeranjangPOS() {
       grandTotal += item.total;
       totalItem += item.qty;
       
-      let badgeTipe = item.tipe.includes('Refill') ? '<span class="text-warning fw-bold" style="font-size:10px">● Refill</span>' : '<span class="text-success fw-bold" style="font-size:10px">● Baru</span>';
+      // --- UPDATE LOGIKA LABEL & WARNA ---
+      let labelTipe = item.tipe; // Pakai teks asli (Tabung Kosong / Tabung + Isi)
+      let warnaClass = 'text-success'; // Default Hijau (Baru)
+
+      // Cek kata kunci untuk menentukan warna
+      if(labelTipe.toLowerCase().includes('refill')) {
+          warnaClass = 'text-warning'; // Kuning (Refill)
+      } else if (labelTipe.toLowerCase().includes('kosong')) {
+          warnaClass = 'text-danger';  // Merah (Tabung Kosong)
+      }
+      
+      // Buat Badge HTML
+      let badgeTipe = `<span class="${warnaClass} fw-bold" style="font-size:10px">● ${labelTipe}</span>`;
 
       tbody.innerHTML += `
       <tr>
@@ -5975,21 +6162,36 @@ function loadLaporanSaldo() {
 function renderLaporanUI(data) {
     const rp = (n) => new Intl.NumberFormat('id-ID', {style: 'currency', currency: 'IDR', minimumFractionDigits:0}).format(n);
 
-    // 1. ISI KARTU UTAMA (SUB MENU 1.1)
+    // 1. ISI KARTU UTAMA
     document.getElementById('lap-pendapatan').innerText = rp(data.pendapatan);
     document.getElementById('lap-hpp').innerText = rp(data.hpp);
     document.getElementById('lap-kotor').innerText = rp(data.labaKotor);
     document.getElementById('lap-beban').innerText = rp(data.pengeluaran);
     document.getElementById('lap-bersih').innerText = rp(data.labaBersih);
-    
-    document.getElementById('lap-stok').innerText = rp(data.nilaiStok);
     document.getElementById('lap-beli').innerText = rp(data.pembelian);
+    
+    // --- UPDATE BAGIAN ASET (LEBIH DETAIL) ---
+    const elStok = document.getElementById('lap-stok');
+    
+    // Kita ubah isinya jadi HTML agar bisa ada baris baru
+    elStok.innerHTML = `
+        <div class="fw-bold fs-4">${rp(data.nilaiStok)}</div>
+        <div class="mt-2 pt-2 border-top" style="font-size: 11px; line-height: 1.4;">
+            <div class="d-flex justify-content-between">
+                <span class="text-secondary">Wadah (Fisik):</span>
+                <span class="fw-bold text-dark">${rp(data.asetFisik)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span class="text-secondary">Isi (Dagang):</span>
+                <span class="fw-bold text-success">${rp(data.asetDagang)}</span>
+            </div>
+        </div>
+    `;
 
-    // 2. ISI TABEL METODE BAYAR (SUB MENU 1.2)
+    // 2. ISI TABEL METODE BAYAR
     const tbMetode = document.querySelector('#tabel-metode-bayar tbody');
     tbMetode.innerHTML = '';
     
-    // Urutkan key agar rapi
     Object.keys(data.metodeBayar).forEach(m => {
         let nominal = data.metodeBayar[m];
         tbMetode.innerHTML += `
@@ -6000,8 +6202,8 @@ function renderLaporanUI(data) {
         `;
     });
 
-    // 3. ISI TABEL PENGELUARAN (SUB MENU 2)
-    document.getElementById('lap-beban-total').innerText = rp(data.pengeluaran); // Total di Tab 2
+    // 3. ISI TABEL PENGELUARAN
+    document.getElementById('lap-beban-total').innerText = rp(data.pengeluaran); 
     
     const tbBeban = document.querySelector('#tabel-det-pengeluaran tbody');
     tbBeban.innerHTML = '';
