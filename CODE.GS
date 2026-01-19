@@ -1759,16 +1759,49 @@ function setupDatabase() {
 function tambahProduk(form) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('PRODUK');
-  const FOLDER_ID = '15hiLtvusofF2OJpXVq8lJkePbmqVIuPM'; // Sesuaikan Folder ID
+  
+  // ID Folder Google Drive Anda
+  const FOLDER_ID = '15hiLtvusofF2OJpXVq8lJkePbmqVIuPM'; 
   
   let imageUrl = '';
-  // ... (Logika upload gambar sama seperti sebelumnya) ...
+
+  // PROSES UPLOAD
   if (form.gambar && form.gambar.data) {
-      // ... proses upload ...
-      // imageUrl = ...
+    try {
+      const decoded = Utilities.base64Decode(form.gambar.data);
+      const blob = Utilities.newBlob(decoded, form.gambar.mimeType, form.gambar.fileName);
+      
+      // 1. Ambil Folder Tujuan
+      const folder = DriveApp.getFolderById(FOLDER_ID);
+      
+      // 2. Simpan File di Folder Tersebut
+      const file = folder.createFile(blob); 
+      
+      // 3. Set Permission (Coba Publik -> Domain -> Private)
+      try {
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (e1) {
+        try {
+           file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch (e2) {
+           console.log("Gagal set permission: " + e1.message); 
+        }
+      }
+
+      // 4. Ambil Link
+      // Ganti format link jadi Thumbnail (agar tidak crash/broken di browser)
+      imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1000";
+
+    } catch (e) {
+      // Tampilkan error detail jika gagal
+      throw new Error("Gagal Upload: " + e.message); 
+    }
+  } else {
+    // Jika manual link
+    imageUrl = (typeof form.gambar === 'string') ? form.gambar : '';
   }
 
-  // [UPDATE] Simpan data Tabung
+  // Simpan ke Spreadsheet
   sheet.appendRow([
     'P-' + Date.now(), 
     form.nama, 
