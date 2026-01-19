@@ -987,17 +987,28 @@ function loadProduk() {
       
       // 2. Render Tabel Admin (YANG HILANG SEBELUMNYA)
       const tb = document.querySelector('#tabel-produk tbody');
-      if(tb) {
+        if(tb) {
          tb.innerHTML = ''; // Kosongkan tabel dulu
             data.forEach(r => {
-            // r[0]: ID (PENTING UNTUK EDIT), r[1]: Nama, dll
+            
+            // [BARU] Ambil Data Harga Tabung (Index 9 & 10 sesuai CODE.GS)
+            let hargaBeliTabung = r[9] || 0;
+            let hargaJualTabung = r[10] || 0;
+
+            // Render Baris
             tb.innerHTML += `
               <tr>
-                <td class="fw-bold">${r[1]}</td>
-                <td>${rupiah(r[2])}</td>
-                <td>${rupiah(r[3])}</td>
-                <td class="text-center">${r[4]}</td>
-                <td class="text-center">${r[5]}</td>
+                <td class="fw-bold text-dark">${r[1]}</td>
+                
+                <td class="text-success fw-bold">${rupiah(r[2])}</td>
+                <td class="text-muted small">${rupiah(r[3])}</td>
+                
+                <td class="text-primary fw-bold" style="background-color:#f8f9fa;">${rupiah(hargaJualTabung)}</td>
+                <td class="text-muted small" style="background-color:#f8f9fa;">${rupiah(hargaBeliTabung)}</td>
+
+                <td class="text-center fw-bold">${r[4]}</td>
+                <td class="text-center text-secondary">${r[5]}</td>
+                
                 <td>
                    <button class="btn btn-sm btn-warning text-dark border me-1" onclick="bukaHalamanEdit('${r[0]}')">
                      <i class="material-icons" style="font-size:14px">edit</i>
